@@ -13,6 +13,34 @@
 #include <pthread.h>
 #undef _GNU_SOURCE
 
+/* tcp function */
+// tcp_tproxy_accept_cb
+// tcp_socks5_connect_cb
+// tcp_socks5_send_authreq_cb
+// tcp_socks5_recv_authresp_cb
+// tcp_socks5_send_usrpwdreq_cb
+// tcp_socks5_recv_usrpwdresp_cb
+// tcp_socks5_send_proxyreq_cb
+// tcp_socks5_recv_proxyresp_cb
+// tcp_stream_recv_payload_cb
+// tcp_stream_send_payload_cb
+
+/* udp function */
+// udp_tproxy_recvmsg_cb
+// udp_socks5_connect_cb
+// udp_socks5_send_authreq_cb
+// udp_socks5_recv_authresp_cb
+// udp_socks5_send_usrpwdreq_cb
+// udp_socks5_recv_usrpwdresp_cb
+// udp_socks5_send_proxyreq_cb
+// udp_socks5_recv_proxyresp_cb
+// udp_socks5_recv_tcpmessage_cb
+// udp_socks5_recv_udpmessage_cb
+// udp_socks5_context_release_cb
+// udp_socks5_context_timeout_cb
+// udp_tproxy_context_release_cb
+// udp_tproxy_context_timeout_cb
+
 /* option flags */
 enum {
     OPTION_TCP     = 0x01 << 0, /* enable tcp */
