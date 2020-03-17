@@ -197,6 +197,13 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
     }
 }
 
+void send_tcp_reset(int sockfd) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &(struct linger){.l_onoff = 1, .l_linger = 0}, sizeof(struct linger)) < 0) {
+        LOGERR("[send_tcp_reset] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
+        exit(errno);
+    }
+}
+
 static inline void set_ip_transparent(int family, int sockfd) {
     if (family == AF_INET) {
         if (setsockopt(sockfd, SOL_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {

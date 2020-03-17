@@ -56,6 +56,7 @@ void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
 void set_reuse_port(int sockfd);
 void set_tfo_accept(int sockfd);
 void set_tcp_syncnt(int sockfd, int syncnt);
+void send_tcp_reset(int sockfd);
 
 int new_tcp_listen_sockfd(int family, bool is_tproxy);
 int new_tcp_connect_sockfd(int family);
