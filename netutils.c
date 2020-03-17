@@ -26,6 +26,14 @@
   #define TCP_FASTOPEN 23
 #endif
 
+#ifndef IP_TRANSPARENT
+  #define IP_TRANSPARENT 19
+#endif
+
+#ifndef IPV6_TRANSPARENT
+  #define IPV6_TRANSPARENT 75
+#endif
+
 #ifndef IP_RECVORIGDSTADDR
   #define IP_RECVORIGDSTADDR 20
 #endif
