@@ -24,6 +24,10 @@
 #define UDP_CTRLMESG_BUFSIZ 64
 #define UDP_DATAGRAM_MAXSIZ 1472
 
+#ifndef MSG_FASTOPEN
+  #define MSG_FASTOPEN 0x20000000
+#endif
+
 typedef uint32_t ipaddr4_t;
 typedef uint8_t  ipaddr6_t[16];
 
