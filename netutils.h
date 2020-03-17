@@ -65,6 +65,6 @@ int new_udp_tpsend_sockfd(int family);
 int new_udp_normal_sockfd(int family);
 
 bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy);
-bool get_udp_orig_dstaddr(int family, const struct msghdr *msg, void *dstaddr);
+bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr);
 
 #endif
