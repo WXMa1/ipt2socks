@@ -50,7 +50,14 @@
   #define IP6T_SO_ORIGINAL_DST 80
 #endif
 
-/* declare function prototype */
+void set_nofile_limit(size_t nofile) {
+    if (setrlimit(RLIMIT_NOFILE, &(struct rlimit){nofile, nofile}) < 0) {
+        LOGERR("[set_nofile_limit] setrlimit(nofile, %zu): %s", nofile, my_strerror(errno));
+        exit(errno);
+    }
+}
+
+/* declare function prototype (openwrt?) */
 int initgroups(const char *user, gid_t group);
 
 void run_as_user(const char *username, char *argv[]) {
@@ -87,13 +94,6 @@ void run_as_user(const char *username, char *argv[]) {
 
     if (execv(execfile_abspath, argv) < 0) {
         LOGERR("[run_as_user] execv('%s', args): %s", execfile_abspath, my_strerror(errno));
-        exit(errno);
-    }
-}
-
-void set_nofile_limit(size_t nofile) {
-    if (setrlimit(RLIMIT_NOFILE, &(struct rlimit){nofile, nofile}) < 0) {
-        LOGERR("[set_nofile_limit] setrlimit(nofile, %zu): %s", nofile, my_strerror(errno));
         exit(errno);
     }
 }
