@@ -21,8 +21,8 @@
 #define IP6STR_LOOPBACK "::1"
 #define IP6STR_WILDCARD "::"
 
-#define UDP_MSGCTL_BUFSIZE 64
-#define UDP_PACKET_MAXSIZE 1472
+#define UDP_CTRLMESG_BUFSIZ 64
+#define UDP_DATAGRAM_MAXSIZ 1472
 
 typedef uint32_t ipaddr4_t;
 typedef uint8_t  ipaddr6_t[16];
