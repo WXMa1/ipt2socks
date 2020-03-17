@@ -136,14 +136,14 @@ void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno) {
     }
 }
 
-static inline void set_non_blocking(int sockfd) {
+static inline void set_non_block(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);
     if (flags < 0) {
-        LOGERR("[set_non_blocking] fcntl(%d, F_GETFL): %s", sockfd, strerror(errno));
+        LOGERR("[set_non_block] fcntl(%d, F_GETFL): %s", sockfd, strerror(errno));
         exit(errno);
     }
     if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        LOGERR("[set_non_blocking] fcntl(%d, F_SETFL): %s", sockfd, strerror(errno));
+        LOGERR("[set_non_block] fcntl(%d, F_SETFL): %s", sockfd, strerror(errno));
         exit(errno);
     }
 }
@@ -225,26 +225,26 @@ static inline void set_recv_origdstaddr(int family, int sockfd) {
     }
 }
 
-static inline int new_nonblocking_sockfd(int family, int sktype) {
+static inline int new_nonblock_sockfd(int family, int sktype) {
     int sockfd = socket(family, sktype, 0);
     if (sockfd < 0) {
         LOGERR("[new_tcp_nonblock_sockfd] socket(%s, %s): %s", (family == AF_INET) ? "AF_INET" : "AF_INET6", (sktype == SOCK_STREAM) ? "SOCK_STREAM" : "SOCK_DGRAM", my_strerror(errno));
         exit(errno);
     }
-    set_non_blocking(sockfd);
+    set_non_block(sockfd);
     if (family == AF_INET6) set_ipv6_only(sockfd);
     set_reuse_addr(sockfd);
     return sockfd;
 }
 
 int new_tcp_listen_sockfd(int family, bool is_tproxy) {
-    int sockfd = new_nonblocking_sockfd(family, SOCK_STREAM);
+    int sockfd = new_nonblock_sockfd(family, SOCK_STREAM);
     if (is_tproxy) set_ip_transparent(family, sockfd);
     return sockfd;
 }
 
 int new_tcp_connect_sockfd(int family) {
-    int sockfd = new_nonblocking_sockfd(family, SOCK_STREAM);
+    int sockfd = new_nonblock_sockfd(family, SOCK_STREAM);
     set_tcp_nodelay(sockfd);
     set_tcp_quickack(sockfd);
     return sockfd;
@@ -257,13 +257,13 @@ int new_udp_tprecv_sockfd(int family) {
 }
 
 int new_udp_tpsend_sockfd(int family) {
-    int sockfd = new_nonblocking_sockfd(family, SOCK_DGRAM);
+    int sockfd = new_nonblock_sockfd(family, SOCK_DGRAM);
     set_ip_transparent(family, sockfd);
     return sockfd;
 }
 
 int new_udp_normal_sockfd(int family) {
-    return new_nonblocking_sockfd(family, SOCK_DGRAM);
+    return new_nonblock_sockfd(family, SOCK_DGRAM);
 }
 
 bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy) {
