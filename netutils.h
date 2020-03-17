@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #undef _GNU_SOURCE
 
