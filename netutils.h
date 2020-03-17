@@ -53,8 +53,8 @@ int new_udp_tpsend_sockfd(int ipfamily);
 int new_udp_normal_sockfd(int ipfamily);
 
 int get_ipstr_family(const char *ipstr);
-void build_socket_addr(int ipfamily, void *addr, const char *ipstr, portno_t portno);
-void parse_socket_addr(const void *addr, char *ipstr, portno_t *portno);
+void build_socket_addr(int ipfamily, void *skaddr, const char *ipstr, portno_t portno);
+void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
 
 void set_nofile_limit(size_t nofile);
 
