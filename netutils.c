@@ -53,7 +53,6 @@
 void set_nofile_limit(size_t nofile) {
     if (setrlimit(RLIMIT_NOFILE, &(struct rlimit){nofile, nofile}) < 0) {
         LOGERR("[set_nofile_limit] setrlimit(nofile, %zu): %s", nofile, my_strerror(errno));
-        exit(errno);
     }
 }
 
