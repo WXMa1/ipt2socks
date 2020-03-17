@@ -2,6 +2,7 @@
 #define IPT2SOCKS_NETUTILS_H
 
 #define _GNU_SOURCE
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/socket.h>
