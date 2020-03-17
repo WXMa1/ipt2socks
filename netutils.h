@@ -42,6 +42,10 @@ typedef struct {
 typedef struct sockaddr_in  skaddr4_t;
 typedef struct sockaddr_in6 skaddr6_t;
 
+int get_ipstr_family(const char *ipstr);
+void build_socket_addr(int ipfamily, void *skaddr, const char *ipstr, portno_t portno);
+void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
+
 void set_reuse_port(int sockfd);
 
 bool get_tcp_orig_dstaddr(int ipfamily, int sockfd, void *dstaddr, bool is_tproxy);
@@ -53,10 +57,6 @@ int new_tcp_connect_sockfd(int ipfamily);
 int new_udp_tprecv_sockfd(int ipfamily);
 int new_udp_tpsend_sockfd(int ipfamily);
 int new_udp_normal_sockfd(int ipfamily);
-
-int get_ipstr_family(const char *ipstr);
-void build_socket_addr(int ipfamily, void *skaddr, const char *ipstr, portno_t portno);
-void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
 
 void set_nofile_limit(size_t nofile);
 
