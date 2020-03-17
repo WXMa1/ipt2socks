@@ -189,10 +189,17 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
     }
 }
 
-static inline void set_ip_transparent(int sockfd) {
-    if (setsockopt(sockfd, SOL_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
-        LOGERR("[set_ip_transparent] setsockopt(%d, IP_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
-        exit(errno);
+static inline void set_ip_transparent(int family, int sockfd) {
+    if (family == AF_INET) {
+        if (setsockopt(sockfd, SOL_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
+            LOGERR("[set_ip_transparent] setsockopt(%d, IP_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
+            exit(errno);
+        }
+    } else {
+        if (setsockopt(sockfd, SOL_IPV6, IPV6_TRANSPARENT, &(int){1}, sizeof(int))) {
+            LOGERR("[set_ip_transparent] setsockopt(%d, IPV6_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
+            exit(errno);
+        }
     }
 }
 
@@ -224,7 +231,7 @@ static inline int new_nonblocking_sockfd(int family, int sktype) {
 
 int new_tcp_listen_sockfd(int family, bool is_tproxy) {
     int sockfd = new_nonblocking_sockfd(family, SOCK_STREAM);
-    if (is_tproxy) set_ip_transparent(sockfd);
+    if (is_tproxy) set_ip_transparent(family, sockfd);
     return sockfd;
 }
 
@@ -243,7 +250,7 @@ int new_udp_tprecv_sockfd(int family) {
 
 int new_udp_tpsend_sockfd(int family) {
     int sockfd = new_nonblocking_sockfd(family, SOCK_DGRAM);
-    set_ip_transparent(sockfd);
+    set_ip_transparent(family, sockfd);
     return sockfd;
 }
 
