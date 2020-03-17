@@ -50,21 +50,21 @@ void run_as_user(const char *username, char *argv[]);
 void set_nofile_limit(size_t nofile);
 
 int get_ipstr_family(const char *ipstr);
-void build_socket_addr(int ipfamily, void *skaddr, const char *ipstr, portno_t portno);
+void build_socket_addr(int family, void *skaddr, const char *ipstr, portno_t portno);
 void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
 
 void set_reuse_port(int sockfd);
 void set_tfo_accept(int sockfd);
 void set_tcp_syncnt(int sockfd, int syncnt);
 
-int new_tcp_listen_sockfd(int ipfamily, bool is_tproxy);
-int new_tcp_connect_sockfd(int ipfamily);
+int new_tcp_listen_sockfd(int family, bool is_tproxy);
+int new_tcp_connect_sockfd(int family);
 
-int new_udp_tprecv_sockfd(int ipfamily);
-int new_udp_tpsend_sockfd(int ipfamily);
-int new_udp_normal_sockfd(int ipfamily);
+int new_udp_tprecv_sockfd(int family);
+int new_udp_tpsend_sockfd(int family);
+int new_udp_normal_sockfd(int family);
 
-bool get_tcp_orig_dstaddr(int ipfamily, int sockfd, void *dstaddr, bool is_tproxy);
-bool get_udp_orig_dstaddr(int ipfamily, const struct msghdr *msg, void *dstaddr);
+bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy);
+bool get_udp_orig_dstaddr(int family, const struct msghdr *msg, void *dstaddr);
 
 #endif
