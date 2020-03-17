@@ -42,7 +42,7 @@ typedef struct sockaddr_in6 skaddr6_t;
 
 void set_reuse_port(int sockfd);
 
-bool get_tcp_orig_dstaddr(int ipfamily, int sockfd, void *dstaddr);
+bool get_tcp_orig_dstaddr(int ipfamily, int sockfd, void *dstaddr, bool is_tproxy);
 bool get_udp_orig_dstaddr(int ipfamily, const struct msghdr *msg, void *dstaddr);
 
 int new_tcp_listen_sockfd(int ipfamily, bool is_tproxy);
