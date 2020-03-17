@@ -42,7 +42,7 @@ typedef struct {
 typedef struct sockaddr_in  skaddr4_t;
 typedef struct sockaddr_in6 skaddr6_t;
 
-void run_as_user(const char *username, char *const argv[]);
+void run_as_user(const char *username, char *argv[]);
 void set_nofile_limit(size_t nofile);
 
 int get_ipstr_family(const char *ipstr);
