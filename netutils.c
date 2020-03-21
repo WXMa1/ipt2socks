@@ -240,7 +240,7 @@ void send_tcpreset_to_peer(int sockfd) {
 static inline int new_nonblock_sockfd(int family, int sktype) {
     int sockfd = socket(family, sktype, 0);
     if (sockfd < 0) {
-        LOGERR("[new_tcp_nonblock_sockfd] socket(%s, %s): %s", (family == AF_INET) ? "AF_INET" : "AF_INET6", (sktype == SOCK_STREAM) ? "SOCK_STREAM" : "SOCK_DGRAM", my_strerror(errno));
+        LOGERR("[new_nonblock_sockfd] socket(%s, %s): %s", family == AF_INET ? "AF_INET" : "AF_INET6", sktype == SOCK_STREAM ? "SOCK_STREAM" : "SOCK_DGRAM", my_strerror(errno));
         exit(errno);
     }
     set_non_block(sockfd);
@@ -263,7 +263,8 @@ int new_tcp_connect_sockfd(int family) {
 }
 
 int new_udp_tprecv_sockfd(int family) {
-    int sockfd = new_udp_tpsend_sockfd(family);
+    int sockfd = new_nonblock_sockfd(family, SOCK_DGRAM);
+    set_ip_transparent(family, sockfd);
     set_recv_origdstaddr(family, sockfd);
     return sockfd;
 }
@@ -287,12 +288,12 @@ bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy)
         }
     } else {
         if (family == AF_INET) {
-            if (getsockopt(sockfd, SOL_IP, SO_ORIGINAL_DST, dstaddr, &addrlen) < 0) {
+            if (getsockopt(sockfd, IPPROTO_IP, SO_ORIGINAL_DST, dstaddr, &addrlen) < 0) {
                 LOGERR("[get_tcp_orig_dstaddr] getsockopt(%d, SO_ORIGINAL_DST): %s", sockfd, my_strerror(errno));
                 return false;
             }
         } else {
-            if (getsockopt(sockfd, SOL_IPV6, IP6T_SO_ORIGINAL_DST, dstaddr, &addrlen) < 0) {
+            if (getsockopt(sockfd, IPPROTO_IPV6, IP6T_SO_ORIGINAL_DST, dstaddr, &addrlen) < 0) {
                 LOGERR("[get_tcp_orig_dstaddr] getsockopt(%d, IP6T_SO_ORIGINAL_DST): %s", sockfd, my_strerror(errno));
                 return false;
             }
@@ -304,7 +305,7 @@ bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy)
 bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr) {
     if (family == AF_INET) {
         for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
-            if (cmsg->cmsg_level == SOL_IP && cmsg->cmsg_type == IP_RECVORIGDSTADDR) {
+            if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVORIGDSTADDR) {
                 memcpy(dstaddr, CMSG_DATA(cmsg), sizeof(skaddr4_t));
                 ((skaddr4_t *)dstaddr)->sin_family = family;
                 return true;
@@ -312,7 +313,7 @@ bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr) {
         }
     } else {
         for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
-            if (cmsg->cmsg_level == SOL_IPV6 && cmsg->cmsg_type == IPV6_RECVORIGDSTADDR) {
+            if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_RECVORIGDSTADDR) {
                 memcpy(dstaddr, CMSG_DATA(cmsg), sizeof(skaddr6_t));
                 ((skaddr6_t *)dstaddr)->sin6_family = family;
                 return true;
