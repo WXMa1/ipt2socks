@@ -53,6 +53,7 @@
 void set_nofile_limit(size_t nofile) {
     if (setrlimit(RLIMIT_NOFILE, &(struct rlimit){nofile, nofile}) < 0) {
         LOGERR("[set_nofile_limit] setrlimit(nofile, %zu): %s", nofile, my_strerror(errno));
+        exit(errno);
     }
 }
 
@@ -62,7 +63,7 @@ int initgroups(const char *user, gid_t group);
 void run_as_user(const char *username, char *argv[]) {
     if (geteuid() != 0) return; /* ignore if current user is not root */
 
-    struct passwd *userinfo = getpwnam(username);
+    const struct passwd *userinfo = getpwnam(username);
     if (!userinfo) {
         LOGERR("[run_as_user] user:'%s' does not exist in this system", username);
         exit(1);
@@ -76,7 +77,7 @@ void run_as_user(const char *username, char *argv[]) {
     }
 
     if (initgroups(userinfo->pw_name, userinfo->pw_gid) < 0) {
-        LOGERR("[run_as_user] initgroups(%d) of user:'%s': %s", userinfo->pw_gid, userinfo->pw_name, my_strerror(errno));
+        LOGERR("[run_as_user] initgroups(%u) of user:'%s': %s", userinfo->pw_gid, userinfo->pw_name, my_strerror(errno));
         exit(errno);
     }
 
@@ -109,8 +110,8 @@ int get_ipstr_family(const char *ipstr) {
     }
 }
 
-void build_socket_addr(int ipfamily, void *skaddr, const char *ipstr, portno_t portno) {
-    if (ipfamily == AF_INET) {
+void build_socket_addr(int family, void *skaddr, const char *ipstr, portno_t portno) {
+    if (family == AF_INET) {
         skaddr4_t *addr = skaddr;
         addr->sin_family = AF_INET;
         inet_pton(AF_INET, ipstr, &addr->sin_addr);
