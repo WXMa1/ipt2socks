@@ -196,9 +196,15 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
     }
 }
 
-void send_tcp_reset(int sockfd) {
+void setup_accepted_sockfd(int sockfd) {
+    set_non_block(sockfd);
+    set_tcp_nodelay(sockfd);
+    set_tcp_quickack(sockfd);
+}
+
+void send_tcpreset_to_peer(int sockfd) {
     if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &(struct linger){.l_onoff = 1, .l_linger = 0}, sizeof(struct linger)) < 0) {
-        LOGERR("[send_tcp_reset] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
+        LOGERR("[send_tcpreset_to_peer] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
     }
 }
 
