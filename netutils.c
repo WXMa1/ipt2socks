@@ -191,7 +191,7 @@ void set_tfo_accept(int sockfd) {
 }
 
 void set_tcp_syncnt(int sockfd, int syncnt) {
-    if (setsockopt(sockfd, IPPROTO_TCP, TCP_SYNCNT, &syncnt, sizeof(syncnt)) < 0) {
+    if (setsockopt(sockfd, IPPROTO_TCP, TCP_SYNCNT, &syncnt, sizeof(int)) < 0) {
         LOGERR("[set_tcp_syncnt] setsockopt(%d, TCP_SYNCNT): %s", sockfd, my_strerror(errno));
         exit(errno);
     }
@@ -199,12 +199,12 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
 
 static inline void set_ip_transparent(int family, int sockfd) {
     if (family == AF_INET) {
-        if (setsockopt(sockfd, SOL_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
             LOGERR("[set_ip_transparent] setsockopt(%d, IP_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
             exit(errno);
         }
     } else {
-        if (setsockopt(sockfd, SOL_IPV6, IPV6_TRANSPARENT, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_TRANSPARENT, &(int){1}, sizeof(int))) {
             LOGERR("[set_ip_transparent] setsockopt(%d, IPV6_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
             exit(errno);
         }
@@ -213,12 +213,12 @@ static inline void set_ip_transparent(int family, int sockfd) {
 
 static inline void set_recv_origdstaddr(int family, int sockfd) {
     if (family == AF_INET) {
-        if (setsockopt(sockfd, SOL_IP, IP_RECVORIGDSTADDR, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IP, IP_RECVORIGDSTADDR, &(int){1}, sizeof(int))) {
             LOGERR("[set_recv_origdstaddr4] setsockopt(%d, IP_RECVORIGDSTADDR): %s", sockfd, my_strerror(errno));
             exit(errno);
         }
     } else {
-        if (setsockopt(sockfd, SOL_IPV6, IPV6_RECVORIGDSTADDR, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_RECVORIGDSTADDR, &(int){1}, sizeof(int))) {
             LOGERR("[set_recv_origdstaddr6] setsockopt(%d, IPV6_RECVORIGDSTADDR): %s", sockfd, my_strerror(errno));
             exit(errno);
         }
