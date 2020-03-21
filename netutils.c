@@ -125,7 +125,7 @@ void build_socket_addr(int family, void *skaddr, const char *ipstr, portno_t por
 }
 
 void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno) {
-    if (((skaddr4_t *)skaddr)->sin_family == AF_INET) {
+    if (((const skaddr4_t *)skaddr)->sin_family == AF_INET) {
         const skaddr4_t *addr = skaddr;
         inet_ntop(AF_INET, &addr->sin_addr, ipstr, IP4STRLEN);
         *portno = ntohs(addr->sin_port);
@@ -197,18 +197,6 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
     }
 }
 
-void setup_accepted_sockfd(int sockfd) {
-    set_non_block(sockfd);
-    set_tcp_nodelay(sockfd);
-    set_tcp_quickack(sockfd);
-}
-
-void send_tcpreset_to_peer(int sockfd) {
-    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &(struct linger){.l_onoff = 1, .l_linger = 0}, sizeof(struct linger)) < 0) {
-        LOGERR("[send_tcpreset_to_peer] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
-    }
-}
-
 static inline void set_ip_transparent(int family, int sockfd) {
     if (family == AF_INET) {
         if (setsockopt(sockfd, SOL_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
@@ -234,6 +222,18 @@ static inline void set_recv_origdstaddr(int family, int sockfd) {
             LOGERR("[set_recv_origdstaddr6] setsockopt(%d, IPV6_RECVORIGDSTADDR): %s", sockfd, my_strerror(errno));
             exit(errno);
         }
+    }
+}
+
+void setup_accepted_sockfd(int sockfd) {
+    set_non_block(sockfd);
+    set_tcp_nodelay(sockfd);
+    set_tcp_quickack(sockfd);
+}
+
+void send_tcpreset_to_peer(int sockfd) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &(struct linger){.l_onoff = 1, .l_linger = 0}, sizeof(struct linger)) < 0) {
+        LOGERR("[send_tcpreset_to_peer] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
     }
 }
 
