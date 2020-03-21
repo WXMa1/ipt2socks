@@ -199,12 +199,12 @@ void set_tcp_syncnt(int sockfd, int syncnt) {
 
 static inline void set_ip_transparent(int family, int sockfd) {
     if (family == AF_INET) {
-        if (setsockopt(sockfd, IPPROTO_IP, IP_TRANSPARENT, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IP, IP_TRANSPARENT, &(int){1}, sizeof(int)) < 0) {
             LOGERR("[set_ip_transparent] setsockopt(%d, IP_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
             exit(errno);
         }
     } else {
-        if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_TRANSPARENT, &(int){1}, sizeof(int))) {
+        if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_TRANSPARENT, &(int){1}, sizeof(int)) < 0) {
             LOGERR("[set_ip_transparent] setsockopt(%d, IPV6_TRANSPARENT): (%d) %s", sockfd, errno, my_strerror(errno));
             exit(errno);
         }
