@@ -307,7 +307,6 @@ bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr) {
         for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
             if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVORIGDSTADDR) {
                 memcpy(dstaddr, CMSG_DATA(cmsg), sizeof(skaddr4_t));
-                ((skaddr4_t *)dstaddr)->sin_family = family;
                 return true;
             }
         }
@@ -315,7 +314,6 @@ bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr) {
         for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
             if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_RECVORIGDSTADDR) {
                 memcpy(dstaddr, CMSG_DATA(cmsg), sizeof(skaddr6_t));
-                ((skaddr6_t *)dstaddr)->sin6_family = family;
                 return true;
             }
         }
