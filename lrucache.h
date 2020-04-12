@@ -25,7 +25,7 @@ typedef struct {
 uint16_t lrucache_get_maxsize(void);
 void     lrucache_set_maxsize(uint16_t maxsize);
 
-/* returns the removed key-value pair */
+/* return the removed hashentry pointer */
 udp_socks5ctx_t* udp_socks5ctx_add(udp_socks5ctx_t **cache, udp_socks5ctx_t *entry);
 udp_tproxyctx_t* udp_tproxyctx_add(udp_tproxyctx_t **cache, udp_tproxyctx_t *entry);
 
