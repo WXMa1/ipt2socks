@@ -32,26 +32,16 @@ enum {
 
 #define IF_VERBOSE if (g_verbose)
 
-#define THREAD_NUMBERS_DEFAULT 1
-
-#define UDP_IDLE_TIMEO_DEFAULT 180
-
 #define TCP_SKBUFSIZE_MINIMUM 1024
 #define TCP_SKBUFSIZE_DEFAULT 8192
-
-#define BIND_IPV4_DEFAULT IP4STR_LOOPBACK
-#define BIND_IPV6_DEFAULT IP6STR_LOOPBACK
-#define BIND_PORT_DEFAULT 60080
 
 #define IPT2SOCKS_VERSION "ipt2socks v1.0.2 <https://github.com/zfl9/ipt2socks>"
 
 typedef struct {
-    evio_t  client_watcher;
-    evio_t  socks5_watcher;
-    void   *client_buffptr;
-    void   *socks5_buffptr;
-    size_t  client_bufflen;
-    size_t  socks5_bufflen;
+    evio_t   client_watcher;
+    evio_t   socks5_watcher;
+    uint32_t client_bufflen;
+    uint32_t socks5_bufflen;
 } tcp_context_t;
 
 static void* run_event_loop(void *is_main_thread);
@@ -82,32 +72,30 @@ void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events
 void udp_tproxy_context_release_cb(evloop_t *evloop, evio_t *watcher, int events);
 void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 
-/* static global variable definition */
 static bool             g_verbose                                = false;
 static uint8_t          g_options                                = OPTION_DEFAULT;
-static uint8_t          g_nthreads                               = THREAD_NUMBERS_DEFAULT;
+static uint8_t          g_nthreads                               = 1;
 static uint32_t         g_tcpbufsiz                              = TCP_SKBUFSIZE_DEFAULT;
-static uint16_t         g_udpidletmo                             = UDP_IDLE_TIMEO_DEFAULT;
+static uint16_t         g_udpidletmo                             = 180;
 
-static char             g_bind_ipstr4[IP4STRLEN]                 = BIND_IPV4_DEFAULT;
-static char             g_bind_ipstr6[IP6STRLEN]                 = BIND_IPV6_DEFAULT;
-static portno_t         g_bind_portno                            = BIND_PORT_DEFAULT;
+static char             g_bind_ipstr4[IP4STRLEN]                 = IP4STR_LOOPBACK;
+static char             g_bind_ipstr6[IP6STRLEN]                 = IP6STR_LOOPBACK;
+static portno_t         g_bind_portno                            = 60080;
 static skaddr4_t        g_bind_skaddr4                           = {0};
 static skaddr6_t        g_bind_skaddr6                           = {0};
 
-static bool             g_server_isipv4                          = true;
 static char             g_server_ipstr[IP6STRLEN]                = {0};
 static portno_t         g_server_portno                          = 0;
 static skaddr6_t        g_server_skaddr                          = {0};
 
-static uint8_t          g_usrpwd_reqbuf[SOCKS5_USRPWD_REQMAXLEN] = {0};
+static char             g_usrpwd_reqbuf[SOCKS5_USRPWD_REQMAXLEN] = {0};
 static uint16_t         g_usrpwd_reqlen                          = 0;
 
-static udp_socks5ctx_t *g_udp_socks5ctx_hashtbl                  = NULL;
-static udp_tproxyctx_t *g_udp_tproxyctx_hashtbl                  = NULL;
-static char             g_udp_ipstrbuf[IP6STRLEN]                = {0};
-static char             g_udp_packetbuf[UDP_DATAGRAM_MAXSIZ]     = {0};
-static char             g_udp_socks5buf[SOCKS5_HDR_MAXSIZE]      = {0};
+static udp_socks5ctx_t *g_udp_socks5ctx_table                    = NULL;
+static udp_tproxyctx_t *g_udp_tproxyctx_table                    = NULL;
+static char             g_udp_ipstr_buffer[IP6STRLEN]            = {0};
+static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ]  = {0};
+static char             g_udp_socks5_buffer[SOCKS5_HDR_MAXSIZE]  = {0};
 
 /* socks5 authentication request (noauth/usrpwd) */
 static socks5_authreq_t g_socks5_auth_request = {
@@ -210,7 +198,6 @@ static void parse_command_args(int argc, char* argv[]) {
                     printf("[parse_command_args] invalid server ip address: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
-                g_server_isipv4 = get_ipstr_family(optarg) == AF_INET;
                 strcpy(g_server_ipstr, optarg);
                 break;
             case 'p':
@@ -405,7 +392,7 @@ static void parse_command_args(int argc, char* argv[]) {
 
     build_socket_addr(AF_INET, &g_bind_skaddr4, g_bind_ipstr4, g_bind_portno);
     build_socket_addr(AF_INET6, &g_bind_skaddr6, g_bind_ipstr6, g_bind_portno);
-    build_socket_addr(g_server_isipv4 ? AF_INET : AF_INET6, &g_server_skaddr, g_server_ipstr, g_server_portno);
+    build_socket_addr(get_ipstr_family(g_server_ipstr), &g_server_skaddr, g_server_ipstr, g_server_portno);
     return;
 
 PRINT_HELP_AND_EXIT:
