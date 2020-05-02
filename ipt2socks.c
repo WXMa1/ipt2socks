@@ -21,22 +21,22 @@
 #include <arpa/inet.h>
 #undef _GNU_SOURCE
 
-enum {
-    OPT_ENABLE_TCP        = 0x01 << 0, /* enable tcp proxy */
-    OPT_ENABLE_UDP        = 0x01 << 1, /* enable udp proxy */
-    OPT_ENABLE_IPV4       = 0x01 << 2, /* enable ipv4 proxy */
-    OPT_ENABLE_IPV6       = 0x01 << 3, /* enable ipv6 proxy */
-    OPT_TCP_USE_REDIRECT  = 0x01 << 4, /* use REDIRECT instead of TPROXY (used by tcp) */
-    OPT_ALWAYS_REUSE_PORT = 0x01 << 5, /* always enable SO_REUSEPORT (since linux 3.9+) */
-};
-
-#define IF_VERBOSE if (g_verbose)
-
 #define TCP_SKBUFSIZE_MINIMUM 1024
 #define TCP_SKBUFSIZE_DEFAULT 8192
 #define TCP_SKBUFSIZE_MAXIMUM 65535
 
-#define IPT2SOCKS_VERSION "ipt2socks v1.0.2 <https://github.com/zfl9/ipt2socks>"
+#define IF_VERBOSE if (g_verbose)
+
+#define IPT2SOCKS_VERSION "ipt2socks v1.1.0 <https://github.com/zfl9/ipt2socks>"
+
+enum {
+    OPT_ENABLE_TCP        = 0x01 << 0, // enable tcp proxy
+    OPT_ENABLE_UDP        = 0x01 << 1, // enable udp proxy
+    OPT_ENABLE_IPV4       = 0x01 << 2, // enable ipv4 proxy
+    OPT_ENABLE_IPV6       = 0x01 << 3, // enable ipv6 proxy
+    OPT_TCP_USE_REDIRECT  = 0x01 << 4, // use REDIRECT instead of TPROXY (used by tcp)
+    OPT_ALWAYS_REUSE_PORT = 0x01 << 5, // always enable SO_REUSEPORT (since linux 3.9+)
+};
 
 typedef struct {
     evio_t   client_watcher; // .data: buffer
@@ -49,31 +49,29 @@ typedef struct {
 
 static void* run_event_loop(void *is_main_thread);
 
-void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int events);
-void tcp_stream_send_payload_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void tcp_stream_send_payload_cb(evloop_t *evloop, evio_t *watcher, int events);
 
-void udp_tproxy_recvmsg_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_recv_tcpmessage_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_recv_udpmessage_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_context_release_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_tproxy_context_release_cb(evloop_t *evloop, evio_t *watcher, int events);
-void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_tproxy_recvmsg_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_recv_tcpmessage_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_recv_udpmessage_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
+static void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 
 static bool     g_verbose    = false;
 static uint8_t  g_options    = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
