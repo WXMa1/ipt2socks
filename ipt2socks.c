@@ -133,13 +133,13 @@ static void print_command_help(void) {
            " -b, --listen-addr4 <addr>          listen ipv4 address, default: 127.0.0.1\n"
            " -B, --listen-addr6 <addr>          listen ipv6 address, default: ::1\n"
            " -l, --listen-port <port>           listen port number, default: 60080\n"
-           " -j, --thread-nums <num>            number of worker threads, default: 1\n"
-           " -n, --nofile-limit <num>           set nofile limit, maybe need root priv\n"
            " -f, --buffer-size <size>           tcp socket recv bufsize, default: 8192\n"
+           " -S, --tcp-syncnt <cnt>             change the number of tcp syn retransmits\n"
            " -c, --cache-size <size>            udp context cache maxsize, default: 256\n"
            " -o, --udp-timeout <sec>            udp context idle timeout, default: 180\n"
-           " -u, --run-user <user>              run the ipt2socks with the specified user\n"
-           " -S, --tcp-syncnt <cnt>             change the number of tcp syn retransmits\n"
+           " -j, --thread-nums <num>            number of the worker threads, default: 1\n"
+           " -n, --nofile-limit <num>           set nofile limit, may need root privilege\n"
+           " -u, --run-user <user>              run as the given user, need root privilege\n"
            " -T, --tcp-only                     listen tcp only, aka: disable udp proxy\n"
            " -U, --udp-only                     listen udp only, aka: disable tcp proxy\n"
            " -4, --ipv4-only                    listen ipv4 only, aka: disable ipv6 proxy\n"
@@ -154,9 +154,8 @@ static void print_command_help(void) {
     );
 }
 
-/* parsing command line arguments */
 static void parse_command_args(int argc, char* argv[]) {
-    const char *optstr = ":s:p:a:k:b:B:l:j:n:o:c:f:u:GRTU46vVh";
+    const char *optstr = ":s:p:a:k:b:B:l:f:S:c:o:j:n:u:TU46RrwWvVh";
     const struct option options[] = {
         {"server-addr",   required_argument, NULL, 's'},
         {"server-port",   required_argument, NULL, 'p'},
@@ -165,18 +164,21 @@ static void parse_command_args(int argc, char* argv[]) {
         {"listen-addr4",  required_argument, NULL, 'b'},
         {"listen-addr6",  required_argument, NULL, 'B'},
         {"listen-port",   required_argument, NULL, 'l'},
+        {"buffer-size",   required_argument, NULL, 'f'},
+        {"tcp-syncnt",    required_argument, NULL, 'S'},
+        {"cache-size",    required_argument, NULL, 'c'},
+        {"udp-timeout",   required_argument, NULL, 'o'},
         {"thread-nums",   required_argument, NULL, 'j'},
         {"nofile-limit",  required_argument, NULL, 'n'},
-        {"udp-timeout",   required_argument, NULL, 'o'},
-        {"cache-size",    required_argument, NULL, 'c'},
-        {"buffer-size",   required_argument, NULL, 'f'},
         {"run-user",      required_argument, NULL, 'u'},
-        {"graceful",      no_argument,       NULL, 'G'},
-        {"redirect",      no_argument,       NULL, 'R'},
         {"tcp-only",      no_argument,       NULL, 'T'},
         {"udp-only",      no_argument,       NULL, 'U'},
         {"ipv4-only",     no_argument,       NULL, '4'},
         {"ipv6-only",     no_argument,       NULL, '6'},
+        {"redirect",      no_argument,       NULL, 'R'},
+        {"reuse-port",    no_argument,       NULL, 'r'},
+        {"tfo-accept",    no_argument,       NULL, 'w'},
+        {"tfo-connect",   no_argument,       NULL, 'W'},
         {"verbose",       no_argument,       NULL, 'v'},
         {"version",       no_argument,       NULL, 'V'},
         {"help",          no_argument,       NULL, 'h'},
