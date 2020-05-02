@@ -155,6 +155,7 @@ static void print_command_help(void) {
 }
 
 static void parse_command_args(int argc, char* argv[]) {
+    opterr = 0; /* does not print an error message, case '?' */
     const char *optstr = ":s:p:a:k:b:B:l:f:S:c:o:j:n:u:TU46RrwWvVh";
     const struct option options[] = {
         {"server-addr",   required_argument, NULL, 's'},
@@ -188,7 +189,6 @@ static void parse_command_args(int argc, char* argv[]) {
     const char *opt_auth_username = NULL;
     const char *opt_auth_password = NULL;
 
-    opterr = 0;
     int optindex = -1;
     int shortopt = -1;
     while ((shortopt = getopt_long(argc, argv, optstr, options, &optindex)) != -1) {
