@@ -22,26 +22,29 @@
 #undef _GNU_SOURCE
 
 enum {
-    OPTION_TCP     = 0x01 << 0, /* enable tcp */
-    OPTION_UDP     = 0x01 << 1, /* enable udp */
-    OPTION_IPV4    = 0x01 << 2, /* enable ipv4 */
-    OPTION_IPV6    = 0x01 << 3, /* enable ipv6 */
-    OPTION_DNAT    = 0x01 << 4, /* use REDIRECT instead of TPROXY (for tcp) */
-    OPTION_DEFAULT = OPTION_TCP | OPTION_UDP | OPTION_IPV4 | OPTION_IPV6, /* default behavior */
+    OPT_ENABLE_TCP        = 0x01 << 0, /* enable tcp proxy */
+    OPT_ENABLE_UDP        = 0x01 << 1, /* enable udp proxy */
+    OPT_ENABLE_IPV4       = 0x01 << 2, /* enable ipv4 proxy */
+    OPT_ENABLE_IPV6       = 0x01 << 3, /* enable ipv6 proxy */
+    OPT_TCP_USE_REDIRECT  = 0x01 << 4, /* use REDIRECT instead of TPROXY (used by tcp) */
+    OPT_ALWAYS_REUSE_PORT = 0x01 << 5, /* always enable SO_REUSEPORT (since linux 3.9+) */
 };
 
 #define IF_VERBOSE if (g_verbose)
 
 #define TCP_SKBUFSIZE_MINIMUM 1024
 #define TCP_SKBUFSIZE_DEFAULT 8192
+#define TCP_SKBUFSIZE_MAXIMUM 65535
 
 #define IPT2SOCKS_VERSION "ipt2socks v1.0.2 <https://github.com/zfl9/ipt2socks>"
 
 typedef struct {
-    evio_t   client_watcher;
-    evio_t   socks5_watcher;
-    uint32_t client_bufflen;
-    uint32_t socks5_bufflen;
+    evio_t   client_watcher; // .data: buffer
+    evio_t   socks5_watcher; // .data: buffer
+    uint16_t client_recvlen;
+    uint16_t socks5_recvlen;
+    uint16_t client_sendlen;
+    uint16_t socks5_sendlen;
 } tcp_context_t;
 
 static void* run_event_loop(void *is_main_thread);
@@ -72,40 +75,38 @@ void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events
 void udp_tproxy_context_release_cb(evloop_t *evloop, evio_t *watcher, int events);
 void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 
-static bool             g_verbose                                = false;
-static uint8_t          g_options                                = OPTION_DEFAULT;
-static uint8_t          g_nthreads                               = 1;
-static uint32_t         g_tcpbufsiz                              = TCP_SKBUFSIZE_DEFAULT;
-static uint16_t         g_udpidletmo                             = 180;
+static bool     g_verbose    = false;
+static uint8_t  g_options    = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
+static uint8_t  g_nthreads   = 1;
+static uint32_t g_tcpbufsiz  = TCP_SKBUFSIZE_DEFAULT;
+static uint16_t g_udpidlesec = 180;
 
-static char             g_bind_ipstr4[IP4STRLEN]                 = IP4STR_LOOPBACK;
-static char             g_bind_ipstr6[IP6STRLEN]                 = IP6STR_LOOPBACK;
-static portno_t         g_bind_portno                            = 60080;
-static skaddr4_t        g_bind_skaddr4                           = {0};
-static skaddr6_t        g_bind_skaddr6                           = {0};
+static char      g_bind_ipstr4[IP4STRLEN] = IP4STR_LOOPBACK;
+static char      g_bind_ipstr6[IP6STRLEN] = IP6STR_LOOPBACK;
+static portno_t  g_bind_portno            = 60080;
+static skaddr4_t g_bind_skaddr4           = {0};
+static skaddr6_t g_bind_skaddr6           = {0};
 
-static char             g_server_ipstr[IP6STRLEN]                = {0};
-static portno_t         g_server_portno                          = 0;
-static skaddr6_t        g_server_skaddr                          = {0};
+static char      g_server_ipstr[IP6STRLEN] = {0};
+static portno_t  g_server_portno           = 0;
+static skaddr6_t g_server_skaddr           = {0};
 
-static char             g_usrpwd_reqbuf[SOCKS5_USRPWD_REQMAXLEN] = {0};
-static uint16_t         g_usrpwd_reqlen                          = 0;
+static udp_socks5ctx_t *g_udp_socks5ctx_table                   = NULL;
+static udp_tproxyctx_t *g_udp_tproxyctx_table                   = NULL;
+static char             g_udp_ipstr_buffer[IP6STRLEN]           = {0};
+static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ] = {0};
+static char             g_udp_socks5_buffer[SOCKS5_HDR_MAXSIZE] = {0};
 
-static udp_socks5ctx_t *g_udp_socks5ctx_table                    = NULL;
-static udp_tproxyctx_t *g_udp_tproxyctx_table                    = NULL;
-static char             g_udp_ipstr_buffer[IP6STRLEN]            = {0};
-static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ]  = {0};
-static char             g_udp_socks5_buffer[SOCKS5_HDR_MAXSIZE]  = {0};
-
-/* socks5 authentication request (noauth/usrpwd) */
 static socks5_authreq_t g_socks5_auth_request = {
     .version = SOCKS5_VERSION,
     .mlength = 1,
     .method = SOCKS5_METHOD_NOAUTH, /* noauth by default */
 };
 
-/* socks5 udp4 association request constant */
-static const socks5_ipv4req_t G_SOCKS5_UDP4_REQUEST = {
+static char     g_socks5_usrpwd_request[SOCKS5_USRPWD_REQMAXLEN] = {0};
+static uint16_t g_socks5_usrpwd_requestlen = 0;
+
+static socks5_ipv4req_t g_socks5_udp4_request = {
     .version = SOCKS5_VERSION,
     .command = SOCKS5_COMMAND_UDPASSOCIATE,
     .reserved = 0,
@@ -114,8 +115,7 @@ static const socks5_ipv4req_t G_SOCKS5_UDP4_REQUEST = {
     .portnum = 0,
 };
 
-/* socks5 udp6 association request constant */
-static const socks5_ipv6req_t G_SOCKS5_UDP6_REQUEST = {
+static socks5_ipv6req_t g_socks5_udp6_request = {
     .version = SOCKS5_VERSION,
     .command = SOCKS5_COMMAND_UDPASSOCIATE,
     .reserved = 0,
@@ -124,7 +124,6 @@ static const socks5_ipv6req_t G_SOCKS5_UDP6_REQUEST = {
     .portnum = 0,
 };
 
-/* print command help information */
 static void print_command_help(void) {
     printf("usage: ipt2socks <options...>. the existing options are as follows:\n"
            " -s, --server-addr <addr>           socks5 server ip address, <required>\n"
@@ -269,8 +268,8 @@ static void parse_command_args(int argc, char* argv[]) {
                 set_nofile_limit(strtol(optarg, NULL, 10));
                 break;
             case 'o':
-                g_udpidletmo = strtol(optarg, NULL, 10);
-                if (g_udpidletmo == 0) {
+                g_udpidlesec = strtol(optarg, NULL, 10);
+                if (g_udpidlesec == 0) {
                     printf("[parse_command_args] invalid udp socket idle timeout: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
@@ -293,21 +292,21 @@ static void parse_command_args(int argc, char* argv[]) {
                 run_as_user(optarg, argv);
                 break;
             case 'R':
-                g_options |= OPTION_DNAT;
+                g_options |= OPT_TCP_USE_REDIRECT;
                 strcpy(g_bind_ipstr4, IP4STR_WILDCARD);
                 strcpy(g_bind_ipstr6, IP6STR_WILDCARD);
                 break;
             case 'T':
-                g_options &= ~OPTION_UDP;
+                g_options &= ~OPT_ENABLE_UDP;
                 break;
             case 'U':
-                g_options &= ~OPTION_TCP;
+                g_options &= ~OPT_ENABLE_TCP;
                 break;
             case '4':
-                g_options &= ~OPTION_IPV6;
+                g_options &= ~OPT_ENABLE_IPV6;
                 break;
             case '6':
-                g_options &= ~OPTION_IPV4;
+                g_options &= ~OPT_ENABLE_IPV4;
                 break;
             case 'v':
                 g_verbose = true;
@@ -343,11 +342,11 @@ static void parse_command_args(int argc, char* argv[]) {
         goto PRINT_HELP_AND_EXIT;
     }
 
-    if (!(g_options & (OPTION_TCP | OPTION_UDP))) {
+    if (!(g_options & (OPT_ENABLE_TCP | OPT_ENABLE_UDP))) {
         printf("[parse_command_args] both tcp and udp are disabled, nothing to do\n");
         goto PRINT_HELP_AND_EXIT;
     }
-    if (!(g_options & (OPTION_IPV4 | OPTION_IPV6))) {
+    if (!(g_options & (OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6))) {
         printf("[parse_command_args] both ipv4 and ipv6 are disabled, nothing to do\n");
         goto PRINT_HELP_AND_EXIT;
     }
@@ -365,7 +364,7 @@ static void parse_command_args(int argc, char* argv[]) {
         g_socks5_auth_request.method = SOCKS5_METHOD_USRPWD;
 
         /* socks5-usrpwd-request version */
-        socks5_usrpwdreq_t *usrpwdreq = (void *)g_usrpwd_reqbuf;
+        socks5_usrpwdreq_t *usrpwdreq = (void *)g_socks5_usrpwd_request;
         usrpwdreq->version = SOCKS5_USRPWD_VERSION;
 
         /* socks5-usrpwd-request usernamelen */
@@ -385,10 +384,10 @@ static void parse_command_args(int argc, char* argv[]) {
         memcpy(pwdbufptr, opt_auth_password, *pwdlenptr);
 
         /* socks5-usrpwd-request total_length */
-        g_usrpwd_reqlen = 1 + 1 + *usrlenptr + 1 + *pwdlenptr;
+        g_socks5_usrpwd_requestlen = 1 + 1 + *usrlenptr + 1 + *pwdlenptr;
     }
 
-    if (!(g_options & OPTION_TCP)) g_nthreads = 1;
+    if (!(g_options & OPT_ENABLE_TCP)) g_nthreads = 1;
 
     build_socket_addr(AF_INET, &g_bind_skaddr4, g_bind_ipstr4, g_bind_portno);
     build_socket_addr(AF_INET6, &g_bind_skaddr6, g_bind_ipstr6, g_bind_portno);
@@ -407,15 +406,15 @@ int main(int argc, char* argv[]) {
     parse_command_args(argc, argv);
 
     LOGINF("[main] server address: %s#%hu", g_server_ipstr, g_server_portno);
-    if (g_options & OPTION_IPV4) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr4, g_bind_portno);
-    if (g_options & OPTION_IPV6) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr6, g_bind_portno);
+    if (g_options & OPT_ENABLE_IPV4) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr4, g_bind_portno);
+    if (g_options & OPT_ENABLE_IPV6) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr6, g_bind_portno);
     LOGINF("[main] number of worker threads: %hhu", g_nthreads);
-    LOGINF("[main] udp socket idle timeout: %hu", g_udpidletmo);
+    LOGINF("[main] udp socket idle timeout: %hu", g_udpidlesec);
     LOGINF("[main] udp cache maximum size: %hu", lrucache_get_maxsize());
     LOGINF("[main] tcp socket buffer size: %u", g_tcpbufsiz);
-    if (g_options & OPTION_TCP) LOGINF("[main] enable tcp transparent proxy");
-    if (g_options & OPTION_UDP) LOGINF("[main] enable udp transparent proxy");
-    if (g_options & OPTION_DNAT) LOGINF("[main] use redirect instead of tproxy");
+    if (g_options & OPT_ENABLE_TCP) LOGINF("[main] enable tcp transparent proxy");
+    if (g_options & OPT_ENABLE_UDP) LOGINF("[main] enable udp transparent proxy");
+    if (g_options & OPT_TCP_USE_REDIRECT) LOGINF("[main] use redirect instead of tproxy");
     IF_VERBOSE LOGINF("[main] verbose mode (affect performance)");
 
     for (int i = 0; i < g_nthreads - 1; ++i) {
