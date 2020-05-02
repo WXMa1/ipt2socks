@@ -418,27 +418,30 @@ int main(int argc, char* argv[]) {
     LOGINF("[main] server address: %s#%hu", g_server_ipstr, g_server_portno);
     if (g_options & OPT_ENABLE_IPV4) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr4, g_bind_portno);
     if (g_options & OPT_ENABLE_IPV6) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr6, g_bind_portno);
-    LOGINF("[main] number of worker threads: %hhu", g_nthreads);
-    LOGINF("[main] udp socket idle timeout: %hu", g_udp_idletimeout_sec);
+    LOGINF("[main] tcp socket buffer size: %hu", g_tcp_buffer_size);
+    if (g_tcp_syncnt_max) LOGINF("[main] max number of syn retries: %hhu", g_tcp_syncnt_max);
     LOGINF("[main] udp cache maximum size: %hu", lrucache_get_maxsize());
-    LOGINF("[main] tcp socket buffer size: %u", g_tcp_buffer_size);
+    LOGINF("[main] udp socket idle timeout: %hu", g_udp_idletimeout_sec);
+    LOGINF("[main] number of worker threads: %hhu", g_nthreads);
     if (g_options & OPT_ENABLE_TCP) LOGINF("[main] enable tcp transparent proxy");
     if (g_options & OPT_ENABLE_UDP) LOGINF("[main] enable udp transparent proxy");
     if (g_options & OPT_TCP_USE_REDIRECT) LOGINF("[main] use redirect instead of tproxy");
+    if (g_options & OPT_ALWAYS_REUSE_PORT) LOGINF("[main] always enable reuseport feature");
+    if (g_options & OPT_ENABLE_TFO_ACCEPT) LOGINF("[main] enable tfo for tcp server socket");
+    if (g_options & OPT_ENABLE_TFO_CONNECT) LOGINF("[main] enable tfo for tcp client socket");
     IF_VERBOSE LOGINF("[main] verbose mode (affect performance)");
 
     for (int i = 0; i < g_nthreads - 1; ++i) {
         if (pthread_create(&(pthread_t){0}, NULL, run_event_loop, NULL)) {
-            LOGERR("[main] failed to create thread: (%d) %s", errno, my_strerror(errno));
+            LOGERR("[main] create thread failed: %s", my_strerror(errno));
             return errno;
         }
     }
-    run_event_loop((void *)1); /* blocking here */
+    run_event_loop((void *)1);
 
     return 0;
 }
 
-/* event loop */
 static void* run_event_loop(void *is_main_thread) {
     // TODO
     return NULL;
