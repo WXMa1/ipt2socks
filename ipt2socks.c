@@ -23,7 +23,6 @@
 
 #define TCP_SKBUFSIZE_MINIMUM 1024
 #define TCP_SKBUFSIZE_DEFAULT 8192
-#define TCP_SKBUFSIZE_MAXIMUM 65535
 
 #define IF_VERBOSE if (g_verbose)
 
@@ -76,10 +75,8 @@ static void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int
 static void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 
 static bool     g_verbose    = false;
-static uint8_t  g_options    = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
+static uint16_t g_options    = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
 static uint8_t  g_nthreads   = 1;
-static uint32_t g_tcpbufsiz  = TCP_SKBUFSIZE_DEFAULT;
-static uint16_t g_udpidlesec = 180;
 
 static char      g_bind_ipstr4[IP4STRLEN] = IP4STR_LOOPBACK;
 static char      g_bind_ipstr6[IP6STRLEN] = IP6STR_LOOPBACK;
@@ -87,15 +84,18 @@ static portno_t  g_bind_portno            = 60080;
 static skaddr4_t g_bind_skaddr4           = {0};
 static skaddr6_t g_bind_skaddr6           = {0};
 
-static char      g_server_ipstr[IP6STRLEN] = {0};
-static portno_t  g_server_portno           = 0;
+static char      g_server_ipstr[IP6STRLEN] = "127.0.0.1";
+static portno_t  g_server_portno           = 1080;
 static skaddr6_t g_server_skaddr           = {0};
 
+static uint8_t  g_tcp_syncnt_max  = 0; // 0: use default syncnt
+static uint16_t g_tcp_buffer_size = TCP_SKBUFSIZE_DEFAULT; // maxsize: 65535
+
+static uint16_t         g_udp_idletimeout_sec                   = 180;
 static udp_socks5ctx_t *g_udp_socks5ctx_table                   = NULL;
 static udp_tproxyctx_t *g_udp_tproxyctx_table                   = NULL;
 static char             g_udp_ipstr_buffer[IP6STRLEN]           = {0};
 static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ] = {0};
-static char             g_udp_socks5_buffer[SOCKS5_HDR_MAXSIZE] = {0};
 
 static socks5_authreq_t g_socks5_auth_request = {
     .version = SOCKS5_VERSION,
@@ -268,8 +268,8 @@ static void parse_command_args(int argc, char* argv[]) {
                 set_nofile_limit(strtol(optarg, NULL, 10));
                 break;
             case 'o':
-                g_udpidlesec = strtol(optarg, NULL, 10);
-                if (g_udpidlesec == 0) {
+                g_udp_idletimeout_sec = strtol(optarg, NULL, 10);
+                if (g_udp_idletimeout_sec == 0) {
                     printf("[parse_command_args] invalid udp socket idle timeout: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
@@ -282,8 +282,8 @@ static void parse_command_args(int argc, char* argv[]) {
                 lrucache_set_maxsize(strtol(optarg, NULL, 10));
                 break;
             case 'f':
-                g_tcpbufsiz = strtol(optarg, NULL, 10);
-                if (g_tcpbufsiz < TCP_SKBUFSIZE_MINIMUM) {
+                g_tcp_buffer_size = strtol(optarg, NULL, 10);
+                if (g_tcp_buffer_size < TCP_SKBUFSIZE_MINIMUM) {
                     printf("[parse_command_args] buffer should have at least 1024B: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
@@ -409,9 +409,9 @@ int main(int argc, char* argv[]) {
     if (g_options & OPT_ENABLE_IPV4) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr4, g_bind_portno);
     if (g_options & OPT_ENABLE_IPV6) LOGINF("[main] listen address: %s#%hu", g_bind_ipstr6, g_bind_portno);
     LOGINF("[main] number of worker threads: %hhu", g_nthreads);
-    LOGINF("[main] udp socket idle timeout: %hu", g_udpidlesec);
+    LOGINF("[main] udp socket idle timeout: %hu", g_udp_idletimeout_sec);
     LOGINF("[main] udp cache maximum size: %hu", lrucache_get_maxsize());
-    LOGINF("[main] tcp socket buffer size: %u", g_tcpbufsiz);
+    LOGINF("[main] tcp socket buffer size: %u", g_tcp_buffer_size);
     if (g_options & OPT_ENABLE_TCP) LOGINF("[main] enable tcp transparent proxy");
     if (g_options & OPT_ENABLE_UDP) LOGINF("[main] enable udp transparent proxy");
     if (g_options & OPT_TCP_USE_REDIRECT) LOGINF("[main] use redirect instead of tproxy");

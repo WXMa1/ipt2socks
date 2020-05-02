@@ -55,9 +55,6 @@ static inline const char* socks5_rcode2string(uint8_t rcode) {
     return "Unknown response code";
 }
 
-/* socks5 tcp protocol header maxsize */
-#define SOCKS5_HDR_MAXSIZE (sizeof(socks5_ipv6resp_t)) /* 22 bytes */
-
 /* socks5 authentication request */
 typedef struct {
     uint8_t version; /* 0x05 */
