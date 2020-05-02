@@ -513,7 +513,7 @@ static void* run_event_loop(void *is_main_thread) {
             }
 
             evio_t *watcher = malloc(sizeof(*watcher));
-            watcher->data = NULL; /* indicates it is ipv4 */
+            watcher->data = NULL; /* indicates it not ipv4 */
             ev_io_init(watcher, udp_tproxy_recvmsg_cb, sockfd, EV_READ);
             ev_io_start(evloop, watcher);
         }
