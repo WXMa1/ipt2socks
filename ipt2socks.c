@@ -433,7 +433,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < g_nthreads - 1; ++i) {
         if (pthread_create(&(pthread_t){0}, NULL, run_event_loop, NULL)) {
-            LOGERR("[main] create thread failed: %s", my_strerror(errno));
+            LOGERR("[main] create worker thread: %s", my_strerror(errno));
             return errno;
         }
     }
@@ -456,11 +456,11 @@ static void* run_event_loop(void *is_main_thread) {
             if (is_tfo_accept) set_tfo_accept(sockfd);
 
             if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
-                LOGERR("[run_event_loop] bind tcp4 address failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] bind tcp4 address: %s", my_strerror(errno));
                 exit(errno);
             }
             if (listen(sockfd, SOMAXCONN) < 0) {
-                LOGERR("[run_event_loop] listen tcp4 socket failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] listen tcp4 socket: %s", my_strerror(errno));
                 exit(errno);
             }
 
@@ -476,11 +476,11 @@ static void* run_event_loop(void *is_main_thread) {
             if (is_tfo_accept) set_tfo_accept(sockfd);
 
             if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
-                LOGERR("[run_event_loop] bind tcp6 address failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] bind tcp6 address: %s", my_strerror(errno));
                 exit(errno);
             }
             if (listen(sockfd, SOMAXCONN) < 0) {
-                LOGERR("[run_event_loop] listen tcp6 socket failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] listen tcp6 socket: %s", my_strerror(errno));
                 exit(errno);
             }
 
@@ -495,7 +495,7 @@ static void* run_event_loop(void *is_main_thread) {
         if (g_options & OPT_ENABLE_IPV4) {
             int sockfd = new_udp_tprecv_sockfd(AF_INET);
             if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
-                LOGERR("[run_event_loop] bind udp4 address failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] bind udp4 address: %s", my_strerror(errno));
                 exit(errno);
             }
 
@@ -508,7 +508,7 @@ static void* run_event_loop(void *is_main_thread) {
         if (g_options & OPT_ENABLE_IPV6) {
             int sockfd = new_udp_tprecv_sockfd(AF_INET6);
             if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
-                LOGERR("[run_event_loop] bind udp6 address failed: %s", my_strerror(errno));
+                LOGERR("[run_event_loop] bind udp6 address: %s", my_strerror(errno));
                 exit(errno);
             }
 
