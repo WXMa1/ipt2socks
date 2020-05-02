@@ -443,7 +443,83 @@ int main(int argc, char* argv[]) {
 }
 
 static void* run_event_loop(void *is_main_thread) {
-    // TODO
+    evloop_t *evloop = ev_loop_new(0);
+    bool is_reuse_port = g_nthreads > 1 || (g_options & OPT_ALWAYS_REUSE_PORT);
+
+    if (g_options & OPT_ENABLE_TCP) {
+        bool is_tproxy = !(g_options & OPT_TCP_USE_REDIRECT);
+        bool is_tfo_accept = g_options & OPT_ENABLE_TFO_ACCEPT;
+
+        if (g_options & OPT_ENABLE_IPV4) {
+            int sockfd = new_tcp_listen_sockfd(AF_INET, is_tproxy);
+            if (is_reuse_port) set_reuse_port(sockfd);
+            if (is_tfo_accept) set_tfo_accept(sockfd);
+
+            if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
+                LOGERR("[run_event_loop] bind tcp4 address failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+            if (listen(sockfd, SOMAXCONN) < 0) {
+                LOGERR("[run_event_loop] listen tcp4 socket failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+
+            evio_t *watcher = malloc(sizeof(*watcher));
+            watcher->data = (void *)1; /* indicates it is ipv4 */
+            ev_io_init(watcher, tcp_tproxy_accept_cb, sockfd, EV_READ);
+            ev_io_start(evloop, watcher);
+        }
+
+        if (g_options & OPT_ENABLE_IPV6) {
+            int sockfd = new_tcp_listen_sockfd(AF_INET6, is_tproxy);
+            if (is_reuse_port) set_reuse_port(sockfd);
+            if (is_tfo_accept) set_tfo_accept(sockfd);
+
+            if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
+                LOGERR("[run_event_loop] bind tcp6 address failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+            if (listen(sockfd, SOMAXCONN) < 0) {
+                LOGERR("[run_event_loop] listen tcp6 socket failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+
+            evio_t *watcher = malloc(sizeof(*watcher));
+            watcher->data = NULL; /* indicates it not ipv4 */
+            ev_io_init(watcher, tcp_tproxy_accept_cb, sockfd, EV_READ);
+            ev_io_start(evloop, watcher);
+        }
+    }
+
+    if ((g_options & OPT_ENABLE_UDP) && is_main_thread) {
+        if (g_options & OPT_ENABLE_IPV4) {
+            int sockfd = new_udp_tprecv_sockfd(AF_INET);
+            if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
+                LOGERR("[run_event_loop] bind udp4 address failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+
+            evio_t *watcher = malloc(sizeof(*watcher));
+            watcher->data = (void *)1; /* indicates it is ipv4 */
+            ev_io_init(watcher, udp_tproxy_recvmsg_cb, sockfd, EV_READ);
+            ev_io_start(evloop, watcher);
+        }
+
+        if (g_options & OPT_ENABLE_IPV6) {
+            int sockfd = new_udp_tprecv_sockfd(AF_INET6);
+            if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
+                LOGERR("[run_event_loop] bind udp6 address failed: %s", my_strerror(errno));
+                exit(errno);
+            }
+
+            evio_t *watcher = malloc(sizeof(*watcher));
+            watcher->data = NULL; /* indicates it is ipv4 */
+            ev_io_init(watcher, udp_tproxy_recvmsg_cb, sockfd, EV_READ);
+            ev_io_start(evloop, watcher);
+        }
+    }
+
+    ev_run(evloop, 0);
     return NULL;
 }
 
