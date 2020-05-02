@@ -446,3 +446,91 @@ static void* run_event_loop(void *is_main_thread) {
     // TODO
     return NULL;
 }
+
+static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void tcp_stream_send_payload_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_tproxy_recvmsg_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_recv_tcpmessage_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_recv_udpmessage_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
+
+static void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events) {
+    // TODO
+}
