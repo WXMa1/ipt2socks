@@ -186,12 +186,11 @@ static void parse_command_args(int argc, char* argv[]) {
         {NULL,            0,                 NULL,   0},
     };
 
-    const char *opt_auth_username = NULL;
-    const char *opt_auth_password = NULL;
+    const char *optval_auth_username = NULL;
+    const char *optval_auth_password = NULL;
 
-    int optindex = -1;
     int shortopt = -1;
-    while ((shortopt = getopt_long(argc, argv, optstr, options, &optindex)) != -1) {
+    while ((shortopt = getopt_long(argc, argv, optstr, options, NULL)) != -1) {
         switch (shortopt) {
             case 's':
                 if (strlen(optarg) + 1 > IP6STRLEN) {
@@ -209,7 +208,7 @@ static void parse_command_args(int argc, char* argv[]) {
                     printf("[parse_command_args] port number max length is 5: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
-                g_server_portno = strtol(optarg, NULL, 10);
+                g_server_portno = strtoul(optarg, NULL, 10);
                 if (g_server_portno == 0) {
                     printf("[parse_command_args] invalid server port number: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
@@ -220,14 +219,14 @@ static void parse_command_args(int argc, char* argv[]) {
                     printf("[parse_command_args] socks5 username max length is 255: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
-                opt_auth_username = optarg;
+                optval_auth_username = optarg;
                 break;
             case 'k':
                 if (strlen(optarg) > SOCKS5_USRPWD_PWDMAXLEN) {
                     printf("[parse_command_args] socks5 password max length is 255: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
-                opt_auth_password = optarg;
+                optval_auth_password = optarg;
                 break;
             case 'b':
                 if (strlen(optarg) + 1 > IP4STRLEN) {
@@ -256,50 +255,52 @@ static void parse_command_args(int argc, char* argv[]) {
                     printf("[parse_command_args] port number max length is 5: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
-                g_bind_portno = strtol(optarg, NULL, 10);
+                g_bind_portno = strtoul(optarg, NULL, 10);
                 if (g_bind_portno == 0) {
                     printf("[parse_command_args] invalid listen port number: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
                 break;
+            case 'f':
+                g_tcp_buffer_size = strtoul(optarg, NULL, 10);
+                if (g_tcp_buffer_size < TCP_SKBUFSIZE_MINIMUM) {
+                    printf("[parse_command_args] buffer should have at least 1024B: %s\n", optarg);
+                    goto PRINT_HELP_AND_EXIT;
+                }
+                break;
+            case 'S':
+                g_tcp_syncnt_max = strtoul(optarg, NULL, 10);
+                if (g_tcp_syncnt_max == 0) {
+                    printf("[parse_command_args] invalid number of syn retransmits: %s\n", optarg);
+                    goto PRINT_HELP_AND_EXIT;
+                }
+                break;
+            case 'c':
+                if (strtoul(optarg, NULL, 10) == 0) {
+                    printf("[parse_command_args] invalid maxsize of udp lrucache: %s\n", optarg);
+                    goto PRINT_HELP_AND_EXIT;
+                }
+                lrucache_set_maxsize(strtoul(optarg, NULL, 10));
+                break;
+            case 'o':
+                g_udp_idletimeout_sec = strtoul(optarg, NULL, 10);
+                if (g_udp_idletimeout_sec == 0) {
+                    printf("[parse_command_args] invalid udp socket idle timeout: %s\n", optarg);
+                    goto PRINT_HELP_AND_EXIT;
+                }
+                break;
             case 'j':
-                g_nthreads = strtol(optarg, NULL, 10);
+                g_nthreads = strtoul(optarg, NULL, 10);
                 if (g_nthreads == 0) {
                     printf("[parse_command_args] invalid number of worker threads: %s\n", optarg);
                     goto PRINT_HELP_AND_EXIT;
                 }
                 break;
             case 'n':
-                set_nofile_limit(strtol(optarg, NULL, 10));
-                break;
-            case 'o':
-                g_udp_idletimeout_sec = strtol(optarg, NULL, 10);
-                if (g_udp_idletimeout_sec == 0) {
-                    printf("[parse_command_args] invalid udp socket idle timeout: %s\n", optarg);
-                    goto PRINT_HELP_AND_EXIT;
-                }
-                break;
-            case 'c':
-                if (strtol(optarg, NULL, 10) == 0) {
-                    printf("[parse_command_args] invalid maxsize of udp lrucache: %s\n", optarg);
-                    goto PRINT_HELP_AND_EXIT;
-                }
-                lrucache_set_maxsize(strtol(optarg, NULL, 10));
-                break;
-            case 'f':
-                g_tcp_buffer_size = strtol(optarg, NULL, 10);
-                if (g_tcp_buffer_size < TCP_SKBUFSIZE_MINIMUM) {
-                    printf("[parse_command_args] buffer should have at least 1024B: %s\n", optarg);
-                    goto PRINT_HELP_AND_EXIT;
-                }
+                set_nofile_limit(strtoul(optarg, NULL, 10));
                 break;
             case 'u':
                 run_as_user(optarg, argv);
-                break;
-            case 'R':
-                g_options |= OPT_TCP_USE_REDIRECT;
-                strcpy(g_bind_ipstr4, IP4STR_WILDCARD);
-                strcpy(g_bind_ipstr6, IP6STR_WILDCARD);
                 break;
             case 'T':
                 g_options &= ~OPT_ENABLE_UDP;
@@ -312,6 +313,20 @@ static void parse_command_args(int argc, char* argv[]) {
                 break;
             case '6':
                 g_options &= ~OPT_ENABLE_IPV4;
+                break;
+            case 'R':
+                g_options |= OPT_TCP_USE_REDIRECT;
+                strcpy(g_bind_ipstr4, IP4STR_WILDCARD);
+                strcpy(g_bind_ipstr6, IP6STR_WILDCARD);
+                break;
+            case 'r':
+                g_options |= OPT_ALWAYS_REUSE_PORT;
+                break;
+            case 'w':
+                g_options |= OPT_ENABLE_TFO_ACCEPT;
+                break;
+            case 'W':
+                g_options |= OPT_ENABLE_TFO_CONNECT;
                 break;
             case 'v':
                 g_verbose = true;
@@ -338,15 +353,6 @@ static void parse_command_args(int argc, char* argv[]) {
         }
     }
 
-    if (strlen(g_server_ipstr) == 0) {
-        printf("[parse_command_args] missing option: '-s/--server-addr'\n");
-        goto PRINT_HELP_AND_EXIT;
-    }
-    if (g_server_portno == 0) {
-        printf("[parse_command_args] missing option: '-p/--server-port'\n");
-        goto PRINT_HELP_AND_EXIT;
-    }
-
     if (!(g_options & (OPT_ENABLE_TCP | OPT_ENABLE_UDP))) {
         printf("[parse_command_args] both tcp and udp are disabled, nothing to do\n");
         goto PRINT_HELP_AND_EXIT;
@@ -356,15 +362,15 @@ static void parse_command_args(int argc, char* argv[]) {
         goto PRINT_HELP_AND_EXIT;
     }
 
-    if (opt_auth_username && !opt_auth_password) {
+    if (optval_auth_username && !optval_auth_password) {
         printf("[parse_command_args] username specified, but password is not provided\n");
         goto PRINT_HELP_AND_EXIT;
     }
-    if (!opt_auth_username && opt_auth_password) {
+    if (!optval_auth_username && optval_auth_password) {
         printf("[parse_command_args] password specified, but username is not provided\n");
         goto PRINT_HELP_AND_EXIT;
     }
-    if (opt_auth_username && opt_auth_password) {
+    if (optval_auth_username && optval_auth_password) {
         /* change auth method to usrpwd */
         g_socks5_auth_request.method = SOCKS5_METHOD_USRPWD;
 
@@ -374,21 +380,21 @@ static void parse_command_args(int argc, char* argv[]) {
 
         /* socks5-usrpwd-request usernamelen */
         uint8_t *usrlenptr = (void *)usrpwdreq + 1;
-        *usrlenptr = strlen(opt_auth_username);
+        *usrlenptr = strlen(optval_auth_username);
 
         /* socks5-usrpwd-request usernamestr */
         char *usrbufptr = (void *)usrlenptr + 1;
-        memcpy(usrbufptr, opt_auth_username, *usrlenptr);
+        memcpy(usrbufptr, optval_auth_username, *usrlenptr);
 
         /* socks5-usrpwd-request passwordlen */
         uint8_t *pwdlenptr = (void *)usrbufptr + *usrlenptr;
-        *pwdlenptr = strlen(opt_auth_password);
+        *pwdlenptr = strlen(optval_auth_password);
 
         /* socks5-usrpwd-request passwordstr */
         char *pwdbufptr = (void *)pwdlenptr + 1;
-        memcpy(pwdbufptr, opt_auth_password, *pwdlenptr);
+        memcpy(pwdbufptr, optval_auth_password, *pwdlenptr);
 
-        /* socks5-usrpwd-request total_length */
+        /* socks5-usrpwd-request total length */
         g_socks5_usrpwd_requestlen = 1 + 1 + *usrlenptr + 1 + *pwdlenptr;
     }
 
@@ -404,7 +410,6 @@ PRINT_HELP_AND_EXIT:
     exit(1);
 }
 
-/* main entry */
 int main(int argc, char* argv[]) {
     signal(SIGPIPE, SIG_IGN);
     setvbuf(stdout, NULL, _IOLBF, 256);
