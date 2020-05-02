@@ -8,17 +8,17 @@
 #undef _GNU_SOURCE
 
 typedef struct {
-    ip_port_t  key_ipport;
-    evio_t    *tcp_watcher;
-    evio_t    *udp_watcher;
-    evtimer_t *idle_timer;
+    ip_port_t  key_ipport;  // (local) source socket address
+    evio_t     tcp_watcher; // .data: len(16bit) | recvbuff
+    evio_t     udp_watcher; // .data: len(16bit) | firstmsg
+    evtimer_t  idle_timer;
     myhash_hh  hh;
 } udp_socks5ctx_t;
 
 typedef struct {
-    ip_port_t  key_ipport;
-    int        udp_sockfd;
-    evtimer_t *idle_timer;
+    ip_port_t  key_ipport; // (remote) source socket address
+    int        udp_sockfd; // bind the above socket address
+    evtimer_t  idle_timer;
     myhash_hh  hh;
 } udp_tproxyctx_t;
 
