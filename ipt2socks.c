@@ -155,7 +155,7 @@ static void print_command_help(void) {
 }
 
 static void parse_command_args(int argc, char* argv[]) {
-    opterr = 0; /* does not print an error message, case '?' */
+    opterr = 0; /* disable errmsg print, can get error by retval '?' */
     const char *optstr = ":s:p:a:k:b:B:l:f:S:c:o:j:n:u:TU46RrwWvVh";
     const struct option options[] = {
         {"server-addr",   required_argument, NULL, 's'},
