@@ -686,6 +686,10 @@ static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher
         }
         return;
     }
+    if (nrecv == 0) {
+        LOGERR("[tcp_socks5_recv_authresp_cb] recv from %s#%hu: connection is closed", g_server_ipstr, g_server_portno);
+        goto CLEAN_UP_CONTEXT;
+    }
     IF_VERBOSE LOGINF("[tcp_socks5_recv_authresp_cb] recv from %s#%hu, nrecv:%zd", g_server_ipstr, g_server_portno, nrecv);
 
     context->socks5_recvlen += nrecv;
