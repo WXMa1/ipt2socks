@@ -623,7 +623,22 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
 }
 
 static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
-    // TODO
+    if (getsockopt(socks5_watcher->fd, SOL_SOCKET, SO_ERROR, &errno, &(socklen_t){sizeof(errno)}) < 0 || errno) {
+        LOGERR("[tcp_socks5_connect_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+        tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
+        evio_t *client_watcher = &context->client_watcher;
+        ev_io_stop(evloop, socks5_watcher);
+        send_tcpreset_to_peer(client_watcher->fd);
+        close(client_watcher->fd);
+        close(socks5_watcher->fd);
+        free(client_watcher->data);
+        free(socks5_watcher->data);
+        free(context);
+        return;
+    }
+    IF_VERBOSE LOGINF("[tcp_socks5_connect_cb] connect to %s#%hu succeeded", g_server_ipstr, g_server_portno);
+    ev_set_cb(socks5_watcher, tcp_socks5_send_authreq_cb);
+    ev_invoke(evloop, socks5_watcher, EV_WRITE);
 }
 
 static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
