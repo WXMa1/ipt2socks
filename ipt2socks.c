@@ -617,7 +617,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
         proxyreq->command = SOCKS5_COMMAND_CONNECT;
         proxyreq->reserved = 0;
         proxyreq->addrtype = SOCKS5_ADDRTYPE_IPV6;
-        memcpy(proxyreq->ipaddr6, skaddr.sin6_addr.s6_addr, IP6BINLEN);
+        memcpy(&proxyreq->ipaddr6, &skaddr.sin6_addr.s6_addr, IP6BINLEN);
         proxyreq->portnum = skaddr.sin6_port;
     }
 }
