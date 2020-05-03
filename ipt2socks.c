@@ -802,8 +802,36 @@ CLEAN_UP_CONTEXT:;
     free(context);
 }
 
-static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
-    // TODO
+static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
+    tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
+    const void *data = context->client_watcher.data;
+    uint16_t datalen = context->client_recvlen;
+
+    ssize_t nsend = send(socks5_watcher->fd, data + context->socks5_sendlen, datalen - context->socks5_sendlen, 0);
+    if (nsend < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOGERR("[tcp_socks5_send_proxyreq_cb] send to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+            evio_t *client_watcher = &context->client_watcher;
+            ev_io_stop(evloop, socks5_watcher);
+            send_tcpreset_to_peer(client_watcher->fd);
+            send_tcpreset_to_peer(socks5_watcher->fd);
+            close(client_watcher->fd);
+            close(socks5_watcher->fd);
+            free(client_watcher->data);
+            free(socks5_watcher->data);
+            free(context);
+        }
+        return;
+    }
+    IF_VERBOSE LOGINF("[tcp_socks5_send_proxyreq_cb] send to %s#%hu, nsend:%zd", g_server_ipstr, g_server_portno, nsend);
+
+    context->socks5_sendlen += nsend;
+    if (context->socks5_sendlen >= datalen) {
+        context->socks5_sendlen = 0;
+        ev_io_stop(evloop, socks5_watcher);
+        ev_io_init(socks5_watcher, tcp_socks5_recv_proxyresp_cb, socks5_watcher->fd, EV_READ);
+        ev_io_start(evloop, socks5_watcher);
+    }
 }
 
 static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
