@@ -673,8 +673,49 @@ static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher,
     }
 }
 
-static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
-    // TODO
+static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
+    tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
+    socks5_authresp_t *response = socks5_watcher->data;
+    uint16_t responselen = sizeof(socks5_authresp_t);
+
+    ssize_t nrecv = recv(socks5_watcher->fd, (void *)response + context->socks5_recvlen, responselen - context->socks5_recvlen, 0);
+    if (nrecv < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOGERR("[tcp_socks5_recv_authresp_cb] recv from %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+            goto CLEAN_UP_CONTEXT;
+        }
+        return;
+    }
+    IF_VERBOSE LOGINF("[tcp_socks5_recv_authresp_cb] recv from %s#%hu, nrecv:%zd", g_server_ipstr, g_server_portno, nrecv);
+
+    context->socks5_recvlen += nrecv;
+    if (context->socks5_recvlen < responselen) return;
+    context->socks5_recvlen = 0;
+
+    bool is_noauth = g_socks5_usrpwd_requestlen == 0;
+    if (response->version != SOCKS5_VERSION) {
+        LOGERR("[tcp_socks5_recv_authresp_cb] response->version:%#hhx is not SOCKS5:%#hhx", response->version, SOCKS5_VERSION);
+        goto CLEAN_UP_CONTEXT;
+    }
+    if (response->method != g_socks5_auth_request.method) {
+        LOGERR("[tcp_socks5_recv_authresp_cb] response->method:%#hhx is not %s:%#hhx", response->method, is_noauth ? "NOAUTH" : "USRPWD", g_socks5_auth_request.method);
+        goto CLEAN_UP_CONTEXT;
+    }
+    ev_io_stop(evloop, socks5_watcher);
+    ev_io_init(socks5_watcher, is_noauth ? tcp_socks5_send_proxyreq_cb : tcp_socks5_send_usrpwdreq_cb, socks5_watcher->fd, EV_WRITE);
+    ev_io_start(evloop, socks5_watcher);
+    return;
+
+CLEAN_UP_CONTEXT:;
+    evio_t *client_watcher = &context->client_watcher;
+    ev_io_stop(evloop, socks5_watcher);
+    send_tcpreset_to_peer(client_watcher->fd);
+    send_tcpreset_to_peer(socks5_watcher->fd);
+    close(client_watcher->fd);
+    close(socks5_watcher->fd);
+    free(client_watcher->data);
+    free(socks5_watcher->data);
+    free(context);
 }
 
 static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
