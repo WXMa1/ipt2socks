@@ -553,14 +553,13 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
     int socks5_sockfd = new_tcp_connect_sockfd(isipv4 ? AF_INET : AF_INET6);
     if (g_tcp_syncnt_max) set_tcp_syncnt(socks5_sockfd, g_tcp_syncnt_max);
 
-    void *server_addr = &g_server_skaddr;
+    int16_t tfo_nsend = -1; /* if tfo connect succ: tfo_nsend >= 0 */
     socklen_t server_addrlen = g_server_skaddr.sin6_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
 
-    int16_t tfo_nsend = -1; /* succ: >= 0 */
     if (g_options & OPT_ENABLE_TFO_CONNECT) {
         void *send_data = &g_socks5_auth_request;
         uint16_t send_datalen = sizeof(g_socks5_auth_request);
-        tfo_nsend = sendto(socks5_sockfd, send_data, send_datalen, MSG_FASTOPEN, server_addr, server_addrlen);
+        tfo_nsend = sendto(socks5_sockfd, send_data, send_datalen, MSG_FASTOPEN, (void *)&g_server_skaddr, server_addrlen);
         if (tfo_nsend < 0) {
             if (errno != EINPROGRESS) {
                 LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
@@ -574,7 +573,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
             IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%hd", g_server_ipstr, g_server_portno, tfo_nsend);
         }
     } else {
-        if (connect(socks5_sockfd, server_addr, server_addrlen) < 0 && errno != EINPROGRESS) {
+        if (connect(socks5_sockfd, (void *)&g_server_skaddr, server_addrlen) < 0 && errno != EINPROGRESS) {
             LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
             send_tcpreset_to_peer(client_sockfd);
             close(client_sockfd);
