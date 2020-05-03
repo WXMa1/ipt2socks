@@ -593,12 +593,13 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
         tfo_nsend = 0; /* reset to zero for recv auth response */
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
     } else {
+        tfo_nsend = tfo_nsend >= 0 ? tfo_nsend : 0;
         ev_io_init(&context->socks5_watcher, tfo_nsend >= 0 ? tcp_socks5_send_authreq_cb : tcp_socks5_connect_cb, socks5_sockfd, EV_WRITE);
     }
     ev_io_start(evloop, &context->socks5_watcher);
 
     context->socks5_recvlen = 0;
-    context->socks5_sendlen = tfo_nsend > 0 ? tfo_nsend : 0;
+    context->socks5_sendlen = tfo_nsend;
 
     context->client_sendlen = 0;
     context->client_recvlen = isipv4 ? sizeof(socks5_ipv4req_t) : sizeof(socks5_ipv6req_t);
