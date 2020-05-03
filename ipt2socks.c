@@ -722,7 +722,7 @@ CLEAN_UP_CONTEXT:;
     free(context);
 }
 
-static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
+static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
     // TODO
 }
 
