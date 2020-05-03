@@ -53,7 +53,6 @@
 void set_nofile_limit(size_t nofile) {
     if (setrlimit(RLIMIT_NOFILE, &(struct rlimit){nofile, nofile}) < 0) {
         LOGERR("[set_nofile_limit] setrlimit(nofile, %zu): %s", nofile, my_strerror(errno));
-        exit(errno);
     }
 }
 
@@ -66,7 +65,7 @@ void run_as_user(const char *username, char *argv[]) {
     const struct passwd *userinfo = getpwnam(username);
     if (!userinfo) {
         LOGERR("[run_as_user] user:'%s' does not exist in this system", username);
-        exit(1);
+        return;
     }
 
     if (userinfo->pw_uid == 0) return; /* ignore if target user is root */
@@ -151,49 +150,42 @@ static inline void set_non_block(int sockfd) {
 static inline void set_ipv6_only(int sockfd) {
     if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_V6ONLY, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_ipv6_only] setsockopt(%d, IPV6_V6ONLY): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 static inline void set_reuse_addr(int sockfd) {
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_reuse_addr] setsockopt(%d, SO_REUSEADDR): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 void set_reuse_port(int sockfd) {
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_reuse_port] setsockopt(%d, SO_REUSEPORT): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 static inline void set_tcp_nodelay(int sockfd) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_tcp_nodelay] setsockopt(%d, TCP_NODELAY): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 static inline void set_tcp_quickack(int sockfd) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_QUICKACK, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_tcp_quickack] setsockopt(%d, TCP_QUICKACK): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 void set_tfo_accept(int sockfd) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_FASTOPEN, &(int){5}, sizeof(int)) < 0) {
         LOGERR("[set_tfo_accept] setsockopt(%d, TCP_FASTOPEN): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
 void set_tcp_syncnt(int sockfd, int syncnt) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_SYNCNT, &syncnt, sizeof(int)) < 0) {
         LOGERR("[set_tcp_syncnt] setsockopt(%d, TCP_SYNCNT): %s", sockfd, my_strerror(errno));
-        exit(errno);
     }
 }
 
