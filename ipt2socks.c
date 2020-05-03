@@ -522,8 +522,100 @@ static void* run_event_loop(void *is_main_thread) {
     return NULL;
 }
 
-static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *watcher, int events) {
-    // TODO
+static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int events __attribute__((unused))) {
+    bool isipv4 = accept_watcher->data;
+    skaddr6_t skaddr; char ipstr[IP6STRLEN]; portno_t portno;
+
+    int client_sockfd = accept(accept_watcher->fd, NULL, NULL);
+    if (client_sockfd < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOGERR("[tcp_tproxy_accept_cb] accept tcp%s socket: %s", isipv4 ? "4" : "6", my_strerror(errno));
+        }
+        return;
+    }
+    setup_accepted_sockfd(client_sockfd);
+    IF_VERBOSE {
+        getpeername(client_sockfd, (void *)&skaddr, &(socklen_t){sizeof(skaddr)});
+        parse_socket_addr(&skaddr, ipstr, &portno);
+        LOGINF("[tcp_tproxy_accept_cb] source socket address: %s#%hu", ipstr, portno);
+    }
+
+    if (!get_tcp_orig_dstaddr(isipv4 ? AF_INET : AF_INET6, client_sockfd, &skaddr, !(g_options & OPT_TCP_USE_REDIRECT))) {
+        close(client_sockfd);
+        return;
+    }
+    IF_VERBOSE {
+        parse_socket_addr(&skaddr, ipstr, &portno);
+        LOGINF("[tcp_tproxy_accept_cb] target socket address: %s#%hu", ipstr, portno);
+    }
+
+    int socks5_sockfd = new_tcp_connect_sockfd(isipv4 ? AF_INET : AF_INET6);
+    if (g_tcp_syncnt_max) set_tcp_syncnt(socks5_sockfd, g_tcp_syncnt_max);
+
+    void *server_addr = &g_server_skaddr;
+    socklen_t server_addrlen = g_server_skaddr.sin6_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
+
+    int16_t tfo_nsend = -1; /* succ: >= 0 */
+    if (g_options & OPT_ENABLE_TFO_CONNECT) {
+        void *send_data = &g_socks5_auth_request;
+        uint16_t send_datalen = sizeof(g_socks5_auth_request);
+        tfo_nsend = sendto(socks5_sockfd, send_data, send_datalen, MSG_FASTOPEN, server_addr, server_addrlen);
+        if (tfo_nsend < 0) {
+            if (errno != EINPROGRESS) {
+                LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+                close(client_sockfd);
+                close(socks5_sockfd);
+                return;
+            }
+            IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] try to connect to %s#%hu ...", g_server_ipstr, g_server_portno);
+        } else {
+            IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%hd", g_server_ipstr, g_server_portno, tfo_nsend);
+        }
+    } else {
+        if (connect(socks5_sockfd, server_addr, server_addrlen) < 0 && errno != EINPROGRESS) {
+            LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+            close(client_sockfd);
+            close(socks5_sockfd);
+            return;
+        }
+        IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] try to connect to %s#%hu ...", g_server_ipstr, g_server_portno);
+    }
+
+    tcp_context_t *context = malloc(sizeof(*context));
+
+    context->client_watcher.data = malloc(g_tcp_buffer_size);
+    ev_io_init(&context->client_watcher, tcp_stream_recv_payload_cb, client_sockfd, EV_READ);
+
+    context->socks5_watcher.data = malloc(g_tcp_buffer_size);
+    if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
+        ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
+    } else {
+        ev_io_init(&context->socks5_watcher, tfo_nsend >= 0 ? tcp_socks5_send_authreq_cb : tcp_socks5_connect_cb, socks5_sockfd, EV_WRITE);
+    }
+    ev_io_start(evloop, &context->socks5_watcher);
+
+    context->socks5_recvlen = 0;
+    context->socks5_sendlen = tfo_nsend > 0 ? tfo_nsend : 0;
+
+    context->client_sendlen = 0;
+    context->client_recvlen = isipv4 ? sizeof(socks5_ipv4req_t) : sizeof(socks5_ipv6req_t);
+    if (isipv4) {
+        socks5_ipv4req_t *proxyreq = context->client_watcher.data;
+        proxyreq->version = SOCKS5_VERSION;
+        proxyreq->command = SOCKS5_COMMAND_CONNECT;
+        proxyreq->reserved = 0;
+        proxyreq->addrtype = SOCKS5_ADDRTYPE_IPV4;
+        proxyreq->ipaddr4 = ((skaddr4_t *)&skaddr)->sin_addr.s_addr;
+        proxyreq->portnum = ((skaddr4_t *)&skaddr)->sin_port;
+    } else {
+        socks5_ipv6req_t *proxyreq = context->client_watcher.data;
+        proxyreq->version = SOCKS5_VERSION;
+        proxyreq->command = SOCKS5_COMMAND_CONNECT;
+        proxyreq->reserved = 0;
+        proxyreq->addrtype = SOCKS5_ADDRTYPE_IPV6;
+        memcpy(proxyreq->ipaddr6, skaddr.sin6_addr.s6_addr, IP6BINLEN);
+        proxyreq->portnum = skaddr.sin6_port;
+    }
 }
 
 static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events) {
