@@ -653,6 +653,7 @@ static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher,
             evio_t *client_watcher = &context->client_watcher;
             ev_io_stop(evloop, socks5_watcher);
             send_tcpreset_to_peer(client_watcher->fd);
+            send_tcpreset_to_peer(socks5_watcher->fd);
             close(client_watcher->fd);
             close(socks5_watcher->fd);
             free(client_watcher->data);
