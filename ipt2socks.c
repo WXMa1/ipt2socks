@@ -33,8 +33,8 @@ enum {
     OPT_ENABLE_UDP         = 0x01 << 1, // enable udp proxy
     OPT_ENABLE_IPV4        = 0x01 << 2, // enable ipv4 proxy
     OPT_ENABLE_IPV6        = 0x01 << 3, // enable ipv6 proxy
-    OPT_TCP_USE_REDIRECT   = 0x01 << 4, // use REDIRECT instead of TPROXY (used by tcp)
-    OPT_ALWAYS_REUSE_PORT  = 0x01 << 5, // always enable SO_REUSEPORT (since linux 3.9+)
+    OPT_TCP_USE_REDIRECT   = 0x01 << 4, // use redirect instead of tproxy (used by tcp)
+    OPT_ALWAYS_REUSE_PORT  = 0x01 << 5, // always enable so_reuseport (since linux 3.9+)
     OPT_ENABLE_TFO_ACCEPT  = 0x01 << 6, // enable tcp_fastopen for listen socket (server tfo)
     OPT_ENABLE_TFO_CONNECT = 0x01 << 7, // enable tcp_fastopen for connect socket (client tfo)
 };
