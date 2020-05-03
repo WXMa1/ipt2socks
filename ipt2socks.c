@@ -622,7 +622,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
     }
 }
 
-static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int events) {
+static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
     // TODO
 }
 
