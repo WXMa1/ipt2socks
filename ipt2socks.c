@@ -94,7 +94,6 @@ static uint16_t g_tcp_buffer_size = TCP_SKBUFSIZE_DEFAULT; // maxsize: 65535
 static uint16_t         g_udp_idletimeout_sec                   = 180;
 static udp_socks5ctx_t *g_udp_socks5ctx_table                   = NULL;
 static udp_tproxyctx_t *g_udp_tproxyctx_table                   = NULL;
-static char             g_udp_ipstr_buffer[IP6STRLEN]           = {0};
 static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ] = {0};
 
 static socks5_authreq_t g_socks5_auth_request = {
