@@ -541,6 +541,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
     }
 
     if (!get_tcp_orig_dstaddr(isipv4 ? AF_INET : AF_INET6, client_sockfd, &skaddr, !(g_options & OPT_TCP_USE_REDIRECT))) {
+        send_tcpreset_to_peer(client_sockfd);
         close(client_sockfd);
         return;
     }
@@ -563,6 +564,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
         if (tfo_nsend < 0) {
             if (errno != EINPROGRESS) {
                 LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+                send_tcpreset_to_peer(client_sockfd);
                 close(client_sockfd);
                 close(socks5_sockfd);
                 return;
@@ -574,6 +576,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
     } else {
         if (connect(socks5_sockfd, server_addr, server_addrlen) < 0 && errno != EINPROGRESS) {
             LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+            send_tcpreset_to_peer(client_sockfd);
             close(client_sockfd);
             close(socks5_sockfd);
             return;
