@@ -557,7 +557,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
     socklen_t server_addrlen = g_server_skaddr.sin6_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
 
     if (g_options & OPT_ENABLE_TFO_CONNECT) {
-        void *send_data = &g_socks5_auth_request;
+        const void *send_data = &g_socks5_auth_request;
         uint16_t send_datalen = sizeof(g_socks5_auth_request);
         tfo_nsend = sendto(socks5_sockfd, send_data, send_datalen, MSG_FASTOPEN, (void *)&g_server_skaddr, server_addrlen);
         if (tfo_nsend < 0) {
@@ -641,8 +641,35 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
     ev_invoke(evloop, socks5_watcher, EV_WRITE);
 }
 
-static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *watcher, int events) {
-    // TODO
+static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
+    const void *data = &g_socks5_auth_request;
+    uint16_t datalen = sizeof(g_socks5_auth_request);
+    tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
+
+    ssize_t nsend = send(socks5_watcher->fd, data + context->socks5_sendlen, datalen - context->socks5_sendlen, 0);
+    if (nsend < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOGERR("[tcp_socks5_send_authreq_cb] send to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+            evio_t *client_watcher = &context->client_watcher;
+            ev_io_stop(evloop, socks5_watcher);
+            send_tcpreset_to_peer(client_watcher->fd);
+            close(client_watcher->fd);
+            close(socks5_watcher->fd);
+            free(client_watcher->data);
+            free(socks5_watcher->data);
+            free(context);
+        }
+        return;
+    }
+    IF_VERBOSE LOGINF("[tcp_socks5_send_authreq_cb] send to %s#%hu, nsend:%zd", g_server_ipstr, g_server_portno, nsend);
+
+    context->socks5_sendlen += nsend;
+    if (context->socks5_sendlen >= datalen) {
+        context->socks5_sendlen = 0;
+        ev_io_stop(evloop, socks5_watcher);
+        ev_io_init(socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_watcher->fd, EV_READ);
+        ev_io_start(evloop, socks5_watcher);
+    }
 }
 
 static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *watcher, int events) {
