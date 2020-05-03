@@ -642,9 +642,9 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
 }
 
 static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int events __attribute__((unused))) {
+    tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
     const void *data = &g_socks5_auth_request;
     uint16_t datalen = sizeof(g_socks5_auth_request);
-    tcp_context_t *context = (void *)socks5_watcher - offsetof(tcp_context_t, socks5_watcher);
 
     ssize_t nsend = send(socks5_watcher->fd, data + context->socks5_sendlen, datalen - context->socks5_sendlen, 0);
     if (nsend < 0) {
