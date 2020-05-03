@@ -105,7 +105,7 @@ static socks5_authreq_t g_socks5_auth_request = {
 static char     g_socks5_usrpwd_request[SOCKS5_USRPWD_REQMAXLEN] = {0};
 static uint16_t g_socks5_usrpwd_requestlen = 0;
 
-static socks5_ipv4req_t g_socks5_udp4_request = {
+static const socks5_ipv4req_t G_SOCKS5_UDP4_REQUEST = {
     .version = SOCKS5_VERSION,
     .command = SOCKS5_COMMAND_UDPASSOCIATE,
     .reserved = 0,
@@ -114,7 +114,7 @@ static socks5_ipv4req_t g_socks5_udp4_request = {
     .portnum = 0,
 };
 
-static socks5_ipv6req_t g_socks5_udp6_request = {
+static const socks5_ipv6req_t G_SOCKS5_UDP6_REQUEST = {
     .version = SOCKS5_VERSION,
     .command = SOCKS5_COMMAND_UDPASSOCIATE,
     .reserved = 0,
