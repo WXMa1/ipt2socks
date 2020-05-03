@@ -443,11 +443,11 @@ int main(int argc, char* argv[]) {
 
 static void* run_event_loop(void *is_main_thread) {
     evloop_t *evloop = ev_loop_new(0);
-    bool is_reuse_port = g_nthreads > 1 || (g_options & OPT_ALWAYS_REUSE_PORT);
 
     if (g_options & OPT_ENABLE_TCP) {
         bool is_tproxy = !(g_options & OPT_TCP_USE_REDIRECT);
         bool is_tfo_accept = g_options & OPT_ENABLE_TFO_ACCEPT;
+        bool is_reuse_port = g_nthreads > 1 || (g_options & OPT_ALWAYS_REUSE_PORT);
 
         if (g_options & OPT_ENABLE_IPV4) {
             int sockfd = new_tcp_listen_sockfd(AF_INET, is_tproxy);
