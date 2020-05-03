@@ -74,9 +74,9 @@ static void udp_socks5_recv_udpmessage_cb(evloop_t *evloop, evio_t *watcher, int
 static void udp_socks5_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 static void udp_tproxy_context_timeout_cb(evloop_t *evloop, evio_t *watcher, int events);
 
-static bool     g_verbose    = false;
-static uint16_t g_options    = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
-static uint8_t  g_nthreads   = 1;
+static bool     g_verbose  = false;
+static uint16_t g_options  = OPT_ENABLE_TCP | OPT_ENABLE_UDP | OPT_ENABLE_IPV4 | OPT_ENABLE_IPV6;
+static uint8_t  g_nthreads = 1;
 
 static char      g_bind_ipstr4[IP4STRLEN] = IP4STR_LOOPBACK;
 static char      g_bind_ipstr6[IP6STRLEN] = IP6STR_LOOPBACK;
