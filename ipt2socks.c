@@ -590,6 +590,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int e
 
     context->socks5_watcher.data = malloc(g_tcp_buffer_size);
     if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
+        tfo_nsend = 0; /* reset to zero for recv auth response */
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
     } else {
         ev_io_init(&context->socks5_watcher, tfo_nsend >= 0 ? tcp_socks5_send_authreq_cb : tcp_socks5_connect_cb, socks5_sockfd, EV_WRITE);
