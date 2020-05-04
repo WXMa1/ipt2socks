@@ -530,7 +530,6 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     }
     if (client_sockfd < 0) return;
     IF_VERBOSE {
-        getpeername(client_sockfd, (void *)&skaddr, &(socklen_t){sizeof(skaddr)});
         parse_socket_addr(&skaddr, ipstr, &portno);
         LOGINF("[tcp_tproxy_accept_cb] source socket address: %s#%hu", ipstr, portno);
     }
@@ -546,31 +545,20 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
 
     int socks5_sockfd = new_tcp_connect_sockfd(g_server_skaddr.sin6_family, g_tcp_syncnt_max);
 
-    int16_t tfo_nsend = -1; /* if tfo connect succ: tfo_nsend >= 0 */
-    socklen_t server_addrlen = g_server_skaddr.sin6_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
+    const void *tfo_data = (g_options & OPT_ENABLE_TFO_CONNECT) ? &g_socks5_auth_request : NULL;
+    uint16_t tfo_datalen = (g_options & OPT_ENABLE_TFO_CONNECT) ? sizeof(socks5_authreq_t) : 0;
+    int16_t tfo_nsend = -1; /* if tfo connect succeed: tfo_nsend >= 0 */
 
-    if (g_options & OPT_ENABLE_TFO_CONNECT) {
-        const void *send_data = &g_socks5_auth_request;
-        uint16_t send_datalen = sizeof(g_socks5_auth_request);
-        tfo_nsend = sendto(socks5_sockfd, send_data, send_datalen, MSG_FASTOPEN, (void *)&g_server_skaddr, server_addrlen);
-        if (tfo_nsend < 0) {
-            if (errno != EINPROGRESS) {
-                LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
-                tcp_close_by_rst(client_sockfd);
-                close(socks5_sockfd);
-                return;
-            }
-            IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] try to connect to %s#%hu ...", g_server_ipstr, g_server_portno);
-        } else {
-            IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%hd", g_server_ipstr, g_server_portno, tfo_nsend);
-        }
+    if (!tcp_connect(socks5_sockfd, (void *)&g_server_skaddr, tfo_data, tfo_datalen, (ssize_t *)&tfo_nsend)) {
+        LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
+        tcp_close_by_rst(client_sockfd);
+        close(socks5_sockfd);
+        return;
+    }
+
+    if (tfo_nsend >= 0) {
+        IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%hd", g_server_ipstr, g_server_portno, tfo_nsend);
     } else {
-        if (connect(socks5_sockfd, (void *)&g_server_skaddr, server_addrlen) < 0 && errno != EINPROGRESS) {
-            LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
-            tcp_close_by_rst(client_sockfd);
-            close(socks5_sockfd);
-            return;
-        }
         IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] try to connect to %s#%hu ...", g_server_ipstr, g_server_portno);
     }
 
@@ -581,7 +569,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     /* if (watcher->events & EV_CUSTOM); then it is client watcher; fi */
     ev_io_init(&context->client_watcher, tcp_stream_payload_forward_cb, client_sockfd, EV_READ | EV_CUSTOM);
 
-    if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
+    if (tfo_nsend >= 0 && tfo_nsend >= tfo_datalen) {
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
         tfo_nsend = 0; /* reset to zero for next send */
     } else {
@@ -595,6 +583,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
 
     context->client_nsend = 0;
     context->client_nrecv = isipv4 ? sizeof(socks5_ipv4req_t) : sizeof(socks5_ipv6req_t);
+
     if (isipv4) {
         socks5_ipv4req_t *proxyreq = context->client_watcher.data;
         proxyreq->version = SOCKS5_VERSION;
