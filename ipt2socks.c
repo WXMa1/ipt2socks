@@ -566,6 +566,7 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
     ev_invoke(evloop, socks5_watcher, EV_WRITE);
 }
 
+/* return true if the request has been completely sent */
 static bool tcp_socks5_send_request(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
     uint16_t pre_nsend = context->socks5_nsend;
@@ -583,6 +584,7 @@ static bool tcp_socks5_send_request(const char *funcname, evloop_t *evloop, evio
     return false;
 }
 
+/* return true if the response has been completely received */
 static bool tcp_socks5_recv_response(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
     uint16_t pre_nrecv = context->socks5_nrecv; bool is_eof = false;
