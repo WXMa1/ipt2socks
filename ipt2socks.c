@@ -676,10 +676,31 @@ static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *socks5_watche
     }
     ev_set_cb(socks5_watcher, tcp_stream_payload_forward_cb);
     ev_io_start(evloop, &context->client_watcher); /* already init */
+    IF_VERBOSE LOGINF("[tcp_socks5_recv_proxyresp_cb] tunnel is ready, start forwarding ...");
 }
 
-static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *watcher, int revents) {
-    // TODO
+static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *self_watcher, int revents) {
+    tcp_context_t *context = get_tcpctx_by_watcher(self_watcher);
+    bool self_is_client = self_watcher == &context->client_watcher;
+    evio_t *peer_watcher = self_is_client ? &context->socks5_watcher : &context->client_watcher;
+    if (revents & EV_READ) {
+        bool is_eof = false;
+        size_t cur_nrecv = self_is_client ? context->client_nrecv : context->socks5_nrecv;
+        if (!tcp_recv_data(self_watcher->fd, self_watcher->data, g_tcp_buffer_size, &cur_nrecv, &is_eof)) {
+            LOGERR("[tcp_stream_payload_forward_cb] recv from %s stream: %s", self_is_client ? "client" : "socks5", my_strerror(errno));
+            tcp_context_release(evloop, context, true);
+            return;
+        }
+        if (is_eof) {
+            tcp_context_release(evloop, context, false);
+            return;
+        }
+        if ((self_is_client ? context->client_nrecv : context->socks5_nrecv) == cur_nrecv) return; // EAGAIN
+
+    }
+    if (revents & EV_WRITE) {
+
+    }
 }
 
 static void udp_tproxy_recvmsg_cb(evloop_t *evloop, evio_t *watcher, int revents) {
