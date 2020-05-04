@@ -496,9 +496,9 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
 
     const void *tfo_data = (g_options & OPT_ENABLE_TFO_CONNECT) ? &g_socks5_auth_request : NULL;
     uint16_t tfo_datalen = (g_options & OPT_ENABLE_TFO_CONNECT) ? sizeof(socks5_authreq_t) : 0;
-    int16_t tfo_nsend = -1; /* if tfo connect succeed: tfo_nsend >= 0 */
+    ssize_t tfo_nsend = -1; /* if tfo connect succeed: tfo_nsend >= 0 */
 
-    if (!tcp_connect(socks5_sockfd, &g_server_skaddr, tfo_data, tfo_datalen, (ssize_t *)&tfo_nsend)) {
+    if (!tcp_connect(socks5_sockfd, &g_server_skaddr, tfo_data, tfo_datalen, &tfo_nsend)) {
         LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
         tcp_close_by_rst(client_sockfd);
         close(socks5_sockfd);
@@ -506,7 +506,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     }
 
     if (tfo_nsend >= 0) {
-        IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%hd", g_server_ipstr, g_server_portno, tfo_nsend);
+        IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] tfo connect to %s#%hu, nsend:%zd", g_server_ipstr, g_server_portno, tfo_nsend);
     } else {
         IF_VERBOSE LOGINF("[tcp_tproxy_accept_cb] try to connect to %s#%hu ...", g_server_ipstr, g_server_portno);
     }
@@ -518,7 +518,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     /* if (watcher->events & EV_CUSTOM); then it is client watcher; fi */
     ev_io_init(&context->client_watcher, tcp_stream_payload_forward_cb, client_sockfd, EV_READ | EV_CUSTOM);
 
-    if (tfo_nsend >= 0 && tfo_nsend >= tfo_datalen) {
+    if (tfo_nsend >= 0 && (size_t)tfo_nsend >= tfo_datalen) {
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
         tfo_nsend = 0; /* reset to zero for next send */
     } else {
@@ -528,7 +528,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     ev_io_start(evloop, &context->socks5_watcher);
 
     context->socks5_nrecv = 0;
-    context->socks5_nsend = tfo_nsend;
+    context->socks5_nsend = (size_t)tfo_nsend;
 
     context->client_nsend = 0;
     context->client_nrecv = isipv4 ? sizeof(socks5_ipv4req_t) : sizeof(socks5_ipv6req_t);
