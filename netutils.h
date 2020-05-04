@@ -62,6 +62,7 @@ bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr);
 /* false if error (errno is set); true if EAGAIN or succeed */
 bool tcp_accept(int sockfd, int *conn_sockfd, void *from_skaddr);
 bool tcp_connect(int sockfd, const void *skaddr, const void *data, size_t datalen, ssize_t *nsend);
+bool tcp_has_error(int sockfd); /* getsockopt(SO_ERROR), save to errno */
 bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv);
 bool tcp_send_data(int sockfd, const void *data, size_t datalen, size_t *nsend);
 void tcp_close_by_rst(int sockfd);

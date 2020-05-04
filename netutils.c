@@ -337,6 +337,10 @@ bool tcp_connect(int sockfd, const void *skaddr, const void *data, size_t datale
     return true;
 }
 
+bool tcp_has_error(int sockfd) {
+    return getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &errno, &(socklen_t){sizeof(errno)}) < 0 || errno;
+}
+
 bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv) {
     ssize_t ret = recv(sockfd, data + *nrecv, datalen - *nrecv, 0);
     if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
