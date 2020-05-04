@@ -584,11 +584,12 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     }
 
     tcp_context_t *context = malloc(sizeof(*context));
-
     context->client_watcher.data = malloc(g_tcp_buffer_size);
-    ev_io_init(&context->client_watcher, tcp_stream_recv_payload_cb, client_sockfd, EV_READ);
-
     context->socks5_watcher.data = malloc(g_tcp_buffer_size);
+
+    /* if (watcher->events & EV_CUSTOM); then it is client watcher; fi */
+    ev_io_init(&context->client_watcher, tcp_stream_recv_payload_cb, client_sockfd, EV_READ | EV_CUSTOM);
+
     if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
         tfo_nsend = 0; /* reset to zero for send next request */
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
