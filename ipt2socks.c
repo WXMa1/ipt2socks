@@ -631,7 +631,7 @@ static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher
         return;
     }
     ev_io_stop(evloop, socks5_watcher);
-    ev_io_init(socks5_watcher, g_socks5_usrpwd_requestlen > 0 ? tcp_socks5_send_usrpwdreq_cb : tcp_socks5_send_proxyreq_cb, socks5_watcher->fd, EV_WRITE);
+    ev_io_init(socks5_watcher, g_socks5_usrpwd_requestlen ? tcp_socks5_send_usrpwdreq_cb : tcp_socks5_send_proxyreq_cb, socks5_watcher->fd, EV_WRITE);
     ev_io_start(evloop, socks5_watcher);
 }
 
