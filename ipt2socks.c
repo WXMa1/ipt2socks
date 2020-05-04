@@ -569,14 +569,15 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
 /* return true if the request has been completely sent */
 static bool tcp_socks5_send_request(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
-    uint16_t pre_nsend = context->socks5_nsend;
-    if (!tcp_send_data(socks5_watcher->fd, data, datalen, (size_t *)&context->socks5_nsend)) {
+    size_t cur_nsend = context->socks5_nsend;
+    if (!tcp_send_data(socks5_watcher->fd, data, datalen, &cur_nsend)) {
         LOGERR("[%s] send to %s#%hu: %s", funcname, g_server_ipstr, g_server_portno, my_strerror(errno));
         tcp_context_release(evloop, context);
         return false;
     }
-    if (pre_nsend == context->socks5_nsend) return false; // EAGAIN
-    IF_VERBOSE LOGINF("[%s] send to %s#%hu, nsend:%hu", funcname, g_server_ipstr, g_server_portno, context->socks5_nsend - pre_nsend);
+    if (context->socks5_nsend == cur_nsend) return false; // EAGAIN
+    IF_VERBOSE LOGINF("[%s] send to %s#%hu, nsend:%zu", funcname, g_server_ipstr, g_server_portno, cur_nsend - context->socks5_nsend);
+    context->socks5_nsend = cur_nsend;
     if (context->socks5_nsend >= datalen) {
         context->socks5_nsend = 0;
         return true;
@@ -587,8 +588,8 @@ static bool tcp_socks5_send_request(const char *funcname, evloop_t *evloop, evio
 /* return true if the response has been completely received */
 static bool tcp_socks5_recv_response(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
-    uint16_t pre_nrecv = context->socks5_nrecv; bool is_eof = false;
-    if (!tcp_recv_data(socks5_watcher->fd, data, datalen, (size_t *)&context->socks5_nrecv, &is_eof)) {
+    size_t cur_nrecv = context->socks5_nrecv; bool is_eof = false;
+    if (!tcp_recv_data(socks5_watcher->fd, data, datalen, &cur_nrecv, &is_eof)) {
         LOGERR("[%s] recv from %s#%hu: %s", funcname, g_server_ipstr, g_server_portno, my_strerror(errno));
         tcp_context_release(evloop, context);
         return false;
@@ -598,8 +599,9 @@ static bool tcp_socks5_recv_response(const char *funcname, evloop_t *evloop, evi
         tcp_context_release(evloop, context);
         return false;
     }
-    if (pre_nrecv == context->socks5_nrecv) return false; // EAGAIN
-    IF_VERBOSE LOGINF("[%s] recv from %s#%hu, nrecv:%hu", funcname, g_server_ipstr, g_server_portno, context->socks5_nrecv - pre_nrecv);
+    if (context->socks5_nrecv == cur_nrecv) return false; // EAGAIN
+    IF_VERBOSE LOGINF("[%s] recv from %s#%hu, nrecv:%zu", funcname, g_server_ipstr, g_server_portno, cur_nrecv - context->socks5_nrecv);
+    context->socks5_nrecv = cur_nrecv;
     if (context->socks5_nrecv >= datalen) {
         context->socks5_nrecv = 0;
         return true;
