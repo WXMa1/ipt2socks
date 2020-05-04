@@ -740,7 +740,6 @@ static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *self_watcher
             ev_io_modify(peer_watcher, peer_watcher->events | EV_READ);
             ev_io_start(evloop, peer_watcher);
         }
-
     }
 }
 
