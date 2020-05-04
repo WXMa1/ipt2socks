@@ -683,10 +683,11 @@ static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *self_watcher
     tcp_context_t *context = get_tcpctx_by_watcher(self_watcher);
     bool self_is_client = self_watcher == &context->client_watcher;
     evio_t *peer_watcher = self_is_client ? &context->socks5_watcher : &context->client_watcher;
+
     if (revents & EV_READ) {
+        size_t nrecv = 0;
         bool is_eof = false;
-        size_t cur_nrecv = self_is_client ? context->client_nrecv : context->socks5_nrecv;
-        if (!tcp_recv_data(self_watcher->fd, self_watcher->data, g_tcp_buffer_size, &cur_nrecv, &is_eof)) {
+        if (!tcp_recv_data(self_watcher->fd, self_watcher->data, g_tcp_buffer_size, &nrecv, &is_eof)) {
             LOGERR("[tcp_stream_payload_forward_cb] recv from %s stream: %s", self_is_client ? "client" : "socks5", my_strerror(errno));
             tcp_context_release(evloop, context, true);
             return;
@@ -695,10 +696,50 @@ static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *self_watcher
             tcp_context_release(evloop, context, false);
             return;
         }
-        if ((self_is_client ? context->client_nrecv : context->socks5_nrecv) == cur_nrecv) return; // EAGAIN
+        if (nrecv == 0) return; // EAGAIN
 
+        size_t nsend = 0;
+        if (!tcp_send_data(peer_watcher->fd, self_watcher->data, nrecv, &nsend)) {
+            LOGERR("[tcp_stream_payload_forward_cb] send to %s stream: %s", self_is_client ? "socks5" : "client", my_strerror(errno));
+            tcp_context_release(evloop, context, true);
+            return;
+        }
+        if (nsend < nrecv) {
+            *(self_is_client ? &context->client_nrecv : &context->socks5_nrecv) = nrecv;
+            *(self_is_client ? &context->socks5_nsend : &context->client_nsend) = nsend;
+
+            ev_io_stop(evloop, self_watcher);
+            ev_io_modify(self_watcher, self_watcher->events & ~EV_READ);
+            if (self_watcher->events & EV_WRITE) ev_io_start(evloop, self_watcher);
+
+            ev_io_stop(evloop, peer_watcher);
+            ev_io_modify(peer_watcher, peer_watcher->events | EV_WRITE);
+            ev_io_start(evloop, peer_watcher);
+        }
     }
+
     if (revents & EV_WRITE) {
+        size_t nrecv = self_is_client ? context->socks5_nrecv : context->client_nrecv;
+        size_t nsend = self_is_client ? context->client_nsend : context->socks5_nsend;
+
+        if (!tcp_send_data(self_watcher->fd, peer_watcher->data, nrecv, &nsend)) {
+            LOGERR("[tcp_stream_payload_forward_cb] send to %s stream: %s", self_is_client ? "client" : "socks5", my_strerror(errno));
+            tcp_context_release(evloop, context, true);
+            return;
+        }
+
+        if (nsend >= nrecv) {
+            *(self_is_client ? &context->client_nsend : &context->socks5_nsend) = 0;
+            *(self_is_client ? &context->socks5_nrecv : &context->client_nrecv) = 0;
+
+            ev_io_stop(evloop, self_watcher);
+            ev_io_modify(self_watcher, self_watcher->events & ~EV_WRITE);
+            if (self_watcher->events & EV_READ) ev_io_start(evloop, self_watcher);
+
+            ev_io_stop(evloop, peer_watcher);
+            ev_io_modify(peer_watcher, peer_watcher->events | EV_READ);
+            ev_io_start(evloop, peer_watcher);
+        }
 
     }
 }
