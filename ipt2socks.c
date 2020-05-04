@@ -656,6 +656,26 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
     ev_invoke(evloop, socks5_watcher, EV_WRITE);
 }
 
+static inline bool try_send_tcp_data(int sockfd, const void *data, uint16_t length, uint16_t *nsend) {
+    ssize_t ret = send(sockfd, data + *nsend, length - *nsend, 0);
+    if (ret < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    } else if (ret > 0) {
+        *nsend += ret;
+    }
+    return true;
+}
+
+static inline bool try_recv_tcp_data(int sockfd, void *data, uint16_t length, uint16_t *nrecv) {
+    ssize_t ret = recv(sockfd, data + *nrecv, length - *nrecv, 0);
+    if (ret < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    } else if (ret > 0) {
+        *nrecv += ret;
+    }
+    return true;
+}
+
 static bool tcp_socks5_send_handler(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
     ssize_t nsend = send(socks5_watcher->fd, data + context->socks5_nsend, datalen - context->socks5_nsend, 0);
