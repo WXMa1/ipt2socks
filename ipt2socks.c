@@ -591,8 +591,8 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     ev_io_init(&context->client_watcher, tcp_stream_recv_payload_cb, client_sockfd, EV_READ | EV_CUSTOM);
 
     if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
-        tfo_nsend = 0; /* reset to zero for send next request */
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
+        tfo_nsend = 0; /* reset to zero for next send */
     } else {
         ev_io_init(&context->socks5_watcher, tfo_nsend >= 0 ? tcp_socks5_send_authreq_cb : tcp_socks5_connect_cb, socks5_sockfd, EV_WRITE);
         tfo_nsend = tfo_nsend >= 0 ? tfo_nsend : 0;
