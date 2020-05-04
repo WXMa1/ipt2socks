@@ -671,7 +671,8 @@ static void tcp_socks5_send_handler(evloop_t *evloop, evio_t *socks5_watcher, co
     if (context->socks5_nsend >= datalen) {
         context->socks5_nsend = 0;
         ev_io_stop(evloop, socks5_watcher);
-        ev_io_init(socks5_watcher, recv_cb, socks5_watcher->fd, EV_READ);
+        ev_set_cb(socks5_watcher, recv_cb);
+        ev_io_modify(socks5_watcher, EV_READ);
         ev_io_start(evloop, socks5_watcher);
     }
 }
