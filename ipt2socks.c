@@ -693,6 +693,7 @@ static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *self_watcher
             return;
         }
         if (is_eof) {
+            IF_VERBOSE LOGINF("[tcp_stream_payload_forward_cb] recv FIN from %s stream, release ctx", self_is_client ? "client" : "socks5");
             tcp_context_release(evloop, context, false);
             return;
         }
