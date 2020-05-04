@@ -549,7 +549,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     uint16_t tfo_datalen = (g_options & OPT_ENABLE_TFO_CONNECT) ? sizeof(socks5_authreq_t) : 0;
     int16_t tfo_nsend = -1; /* if tfo connect succeed: tfo_nsend >= 0 */
 
-    if (!tcp_connect(socks5_sockfd, (void *)&g_server_skaddr, tfo_data, tfo_datalen, (ssize_t *)&tfo_nsend)) {
+    if (!tcp_connect(socks5_sockfd, &g_server_skaddr, tfo_data, tfo_datalen, (ssize_t *)&tfo_nsend)) {
         LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
         tcp_close_by_rst(client_sockfd);
         close(socks5_sockfd);
