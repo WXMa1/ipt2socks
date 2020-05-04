@@ -550,7 +550,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
         LOGINF("[tcp_tproxy_accept_cb] target socket address: %s#%hu", ipstr, portno);
     }
 
-    int socks5_sockfd = new_tcp_connect_sockfd(isipv4 ? AF_INET : AF_INET6);
+    int socks5_sockfd = new_tcp_connect_sockfd(g_server_skaddr.sin6_family);
     if (g_tcp_syncnt_max) set_tcp_syncnt(socks5_sockfd, g_tcp_syncnt_max);
 
     int16_t tfo_nsend = -1; /* if tfo connect succ: tfo_nsend >= 0 */
