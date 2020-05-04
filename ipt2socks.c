@@ -58,8 +58,7 @@ static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *watcher, int 
 static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *watcher, int revents);
 static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *watcher, int revents);
 static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *watcher, int revents);
-static void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int revents);
-static void tcp_stream_send_payload_cb(evloop_t *evloop, evio_t *watcher, int revents);
+static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *watcher, int revents);
 
 static void udp_tproxy_recvmsg_cb(evloop_t *evloop, evio_t *watcher, int revents);
 static void udp_socks5_connect_cb(evloop_t *evloop, evio_t *watcher, int revents);
@@ -450,9 +449,7 @@ static void* run_event_loop(void *is_main_thread) {
         bool is_reuse_port = g_nthreads > 1 || (g_options & OPT_ALWAYS_REUSE_PORT);
 
         if (g_options & OPT_ENABLE_IPV4) {
-            int sockfd = new_tcp_listen_sockfd(AF_INET, is_tproxy);
-            if (is_reuse_port) set_reuse_port(sockfd);
-            if (is_tfo_accept) set_tfo_accept(sockfd);
+            int sockfd = new_tcp_listen_sockfd(AF_INET, is_tproxy, is_reuse_port, is_tfo_accept);
 
             if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
                 LOGERR("[run_event_loop] bind tcp4 address: %s", my_strerror(errno));
@@ -470,9 +467,7 @@ static void* run_event_loop(void *is_main_thread) {
         }
 
         if (g_options & OPT_ENABLE_IPV6) {
-            int sockfd = new_tcp_listen_sockfd(AF_INET6, is_tproxy);
-            if (is_reuse_port) set_reuse_port(sockfd);
-            if (is_tfo_accept) set_tfo_accept(sockfd);
+            int sockfd = new_tcp_listen_sockfd(AF_INET6, is_tproxy, is_reuse_port, is_tfo_accept);
 
             if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
                 LOGERR("[run_event_loop] bind tcp6 address: %s", my_strerror(errno));
@@ -526,14 +521,12 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     bool isipv4 = accept_watcher->data;
     skaddr6_t skaddr; char ipstr[IP6STRLEN]; portno_t portno;
 
-    int client_sockfd = accept(accept_watcher->fd, NULL, NULL);
-    if (client_sockfd < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            LOGERR("[tcp_tproxy_accept_cb] accept tcp%s socket: %s", isipv4 ? "4" : "6", my_strerror(errno));
-        }
+    int client_sockfd = -1;
+    if (!tcp_accept(accept_watcher->fd, &client_sockfd, &skaddr)) {
+        LOGERR("[tcp_tproxy_accept_cb] accept tcp%s socket: %s", isipv4 ? "4" : "6", my_strerror(errno));
         return;
     }
-    setup_accepted_sockfd(client_sockfd);
+    if (client_sockfd < 0) return;
     IF_VERBOSE {
         getpeername(client_sockfd, (void *)&skaddr, &(socklen_t){sizeof(skaddr)});
         parse_socket_addr(&skaddr, ipstr, &portno);
@@ -541,8 +534,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     }
 
     if (!get_tcp_orig_dstaddr(isipv4 ? AF_INET : AF_INET6, client_sockfd, &skaddr, !(g_options & OPT_TCP_USE_REDIRECT))) {
-        send_tcpreset_to_peer(client_sockfd);
-        close(client_sockfd);
+        tcp_close_by_rst(client_sockfd);
         return;
     }
     IF_VERBOSE {
@@ -550,8 +542,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
         LOGINF("[tcp_tproxy_accept_cb] target socket address: %s#%hu", ipstr, portno);
     }
 
-    int socks5_sockfd = new_tcp_connect_sockfd(g_server_skaddr.sin6_family);
-    if (g_tcp_syncnt_max) set_tcp_syncnt(socks5_sockfd, g_tcp_syncnt_max);
+    int socks5_sockfd = new_tcp_connect_sockfd(g_server_skaddr.sin6_family, g_tcp_syncnt_max);
 
     int16_t tfo_nsend = -1; /* if tfo connect succ: tfo_nsend >= 0 */
     socklen_t server_addrlen = g_server_skaddr.sin6_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
@@ -563,8 +554,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
         if (tfo_nsend < 0) {
             if (errno != EINPROGRESS) {
                 LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
-                send_tcpreset_to_peer(client_sockfd);
-                close(client_sockfd);
+                tcp_close_by_rst(client_sockfd);
                 close(socks5_sockfd);
                 return;
             }
@@ -575,8 +565,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     } else {
         if (connect(socks5_sockfd, (void *)&g_server_skaddr, server_addrlen) < 0 && errno != EINPROGRESS) {
             LOGERR("[tcp_tproxy_accept_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
-            send_tcpreset_to_peer(client_sockfd);
-            close(client_sockfd);
+            tcp_close_by_rst(client_sockfd);
             close(socks5_sockfd);
             return;
         }
@@ -588,7 +577,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
     context->socks5_watcher.data = malloc(g_tcp_buffer_size);
 
     /* if (watcher->events & EV_CUSTOM); then it is client watcher; fi */
-    ev_io_init(&context->client_watcher, tcp_stream_recv_payload_cb, client_sockfd, EV_READ | EV_CUSTOM);
+    ev_io_init(&context->client_watcher, tcp_stream_payload_forward_cb, client_sockfd, EV_READ | EV_CUSTOM);
 
     if ((size_t)tfo_nsend >= sizeof(g_socks5_auth_request)) {
         ev_io_init(&context->socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_sockfd, EV_READ);
@@ -636,10 +625,8 @@ static inline void tcp_context_release(evloop_t *evloop, tcp_context_t *context)
     evio_t *socks5_watcher = &context->socks5_watcher;
     ev_io_stop(evloop, client_watcher);
     ev_io_stop(evloop, socks5_watcher);
-    send_tcpreset_to_peer(client_watcher->fd);
-    send_tcpreset_to_peer(socks5_watcher->fd);
-    close(client_watcher->fd);
-    close(socks5_watcher->fd);
+    tcp_close_by_rst(client_watcher->fd);
+    tcp_close_by_rst(socks5_watcher->fd);
     free(client_watcher->data);
     free(socks5_watcher->data);
     free(context);
@@ -820,15 +807,11 @@ static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *socks5_watche
         tcp_context_release(evloop, context);
         return;
     }
-    ev_set_cb(socks5_watcher, tcp_stream_recv_payload_cb);
+    ev_set_cb(socks5_watcher, tcp_stream_payload_forward_cb);
     ev_io_start(evloop, &context->client_watcher); /* already init */
 }
 
-static void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int revents) {
-    // TODO
-}
-
-static void tcp_stream_send_payload_cb(evloop_t *evloop, evio_t *watcher, int revents) {
+static void tcp_stream_payload_forward_cb(evloop_t *evloop, evio_t *watcher, int revents) {
     // TODO
 }
 
