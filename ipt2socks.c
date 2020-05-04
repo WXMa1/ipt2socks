@@ -624,7 +624,7 @@ static inline void tcp_context_release(evloop_t *evloop, tcp_context_t *context)
 }
 
 static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
-    if (getsockopt(socks5_watcher->fd, SOL_SOCKET, SO_ERROR, &errno, &(socklen_t){sizeof(errno)}) < 0 || errno) {
+    if (tcp_has_error(socks5_watcher->fd)) {
         LOGERR("[tcp_socks5_connect_cb] connect to %s#%hu: %s", g_server_ipstr, g_server_portno, my_strerror(errno));
         tcp_context_release(evloop, get_tcpctx_by_watcher(socks5_watcher));
         return;
@@ -632,26 +632,6 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
     IF_VERBOSE LOGINF("[tcp_socks5_connect_cb] connect to %s#%hu succeeded", g_server_ipstr, g_server_portno);
     ev_set_cb(socks5_watcher, tcp_socks5_send_authreq_cb);
     ev_invoke(evloop, socks5_watcher, EV_WRITE);
-}
-
-static inline bool try_send_tcp_data(int sockfd, const void *data, uint16_t length, uint16_t *nsend) {
-    ssize_t ret = send(sockfd, data + *nsend, length - *nsend, 0);
-    if (ret < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return false;
-    } else if (ret > 0) {
-        *nsend += ret;
-    }
-    return true;
-}
-
-static inline bool try_recv_tcp_data(int sockfd, void *data, uint16_t length, uint16_t *nrecv) {
-    ssize_t ret = recv(sockfd, data + *nrecv, length - *nrecv, 0);
-    if (ret < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return false;
-    } else if (ret > 0) {
-        *nrecv += ret;
-    }
-    return true;
 }
 
 static bool tcp_socks5_send_handler(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen) {
