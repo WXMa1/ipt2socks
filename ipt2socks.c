@@ -95,33 +95,6 @@ static udp_socks5ctx_t *g_udp_socks5ctx_table                   = NULL;
 static udp_tproxyctx_t *g_udp_tproxyctx_table                   = NULL;
 static char             g_udp_dgram_buffer[UDP_DATAGRAM_MAXSIZ] = {0};
 
-static socks5_authreq_t g_socks5_auth_request = {
-    .version = SOCKS5_VERSION,
-    .mlength = 1,
-    .method = SOCKS5_METHOD_NOAUTH, /* noauth by default */
-};
-
-static char     g_socks5_usrpwd_request[SOCKS5_USRPWD_REQMAXLEN] = {0};
-static uint16_t g_socks5_usrpwd_requestlen = 0;
-
-static const socks5_ipv4req_t G_SOCKS5_UDP4_REQUEST = {
-    .version = SOCKS5_VERSION,
-    .command = SOCKS5_COMMAND_UDPASSOCIATE,
-    .reserved = 0,
-    .addrtype = SOCKS5_ADDRTYPE_IPV4,
-    .ipaddr4 = 0,
-    .portnum = 0,
-};
-
-static const socks5_ipv6req_t G_SOCKS5_UDP6_REQUEST = {
-    .version = SOCKS5_VERSION,
-    .command = SOCKS5_COMMAND_UDPASSOCIATE,
-    .reserved = 0,
-    .addrtype = SOCKS5_ADDRTYPE_IPV6,
-    .ipaddr6 = {0},
-    .portnum = 0,
-};
-
 static void print_command_help(void) {
     printf("usage: ipt2socks <options...>. the existing options are as follows:\n"
            " -s, --server-addr <addr>           socks5 server ip, default: 127.0.0.1\n"
@@ -369,31 +342,7 @@ static void parse_command_args(int argc, char* argv[]) {
         goto PRINT_HELP_AND_EXIT;
     }
     if (optval_auth_username && optval_auth_password) {
-        /* change auth method to usrpwd */
-        g_socks5_auth_request.method = SOCKS5_METHOD_USRPWD;
-
-        /* socks5-usrpwd-request version */
-        socks5_usrpwdreq_t *usrpwdreq = (void *)g_socks5_usrpwd_request;
-        usrpwdreq->version = SOCKS5_USRPWD_VERSION;
-
-        /* socks5-usrpwd-request usernamelen */
-        uint8_t *usrlenptr = (void *)usrpwdreq + 1;
-        *usrlenptr = strlen(optval_auth_username);
-
-        /* socks5-usrpwd-request usernamestr */
-        char *usrbufptr = (void *)usrlenptr + 1;
-        memcpy(usrbufptr, optval_auth_username, *usrlenptr);
-
-        /* socks5-usrpwd-request passwordlen */
-        uint8_t *pwdlenptr = (void *)usrbufptr + *usrlenptr;
-        *pwdlenptr = strlen(optval_auth_password);
-
-        /* socks5-usrpwd-request passwordstr */
-        char *pwdbufptr = (void *)pwdlenptr + 1;
-        memcpy(pwdbufptr, optval_auth_password, *pwdlenptr);
-
-        /* socks5-usrpwd-request total length */
-        g_socks5_usrpwd_requestlen = 1 + 1 + *usrlenptr + 1 + *pwdlenptr;
+        socks5_usrpwd_request_make(optval_auth_username, optval_auth_password);
     }
 
     if (!(g_options & OPT_ENABLE_TCP)) g_nthreads = 1;
@@ -583,24 +532,7 @@ static void tcp_tproxy_accept_cb(evloop_t *evloop, evio_t *accept_watcher, int r
 
     context->client_nsend = 0;
     context->client_nrecv = isipv4 ? sizeof(socks5_ipv4req_t) : sizeof(socks5_ipv6req_t);
-
-    if (isipv4) {
-        socks5_ipv4req_t *proxyreq = context->client_watcher.data;
-        proxyreq->version = SOCKS5_VERSION;
-        proxyreq->command = SOCKS5_COMMAND_CONNECT;
-        proxyreq->reserved = 0;
-        proxyreq->addrtype = SOCKS5_ADDRTYPE_IPV4;
-        proxyreq->ipaddr4 = ((skaddr4_t *)&skaddr)->sin_addr.s_addr;
-        proxyreq->portnum = ((skaddr4_t *)&skaddr)->sin_port;
-    } else {
-        socks5_ipv6req_t *proxyreq = context->client_watcher.data;
-        proxyreq->version = SOCKS5_VERSION;
-        proxyreq->command = SOCKS5_COMMAND_CONNECT;
-        proxyreq->reserved = 0;
-        proxyreq->addrtype = SOCKS5_ADDRTYPE_IPV6;
-        memcpy(&proxyreq->ipaddr6, &skaddr.sin6_addr.s6_addr, IP6BINLEN);
-        proxyreq->portnum = skaddr.sin6_port;
-    }
+    socks5_proxy_request_make(context->client_watcher.data, &skaddr);
 }
 
 static inline tcp_context_t* get_tcpctx_by_watcher(evio_t *watcher) {
@@ -677,47 +609,6 @@ static bool tcp_socks5_recv_handler(const char *funcname, evloop_t *evloop, evio
     return false;
 }
 
-static bool chk_socks5_auth_response(const char *funcname, const socks5_authresp_t *response) {
-    if (response->version != SOCKS5_VERSION) {
-        LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
-        return false;
-    }
-    bool is_noauth = g_socks5_usrpwd_requestlen == 0;
-    if (response->method != g_socks5_auth_request.method) {
-        LOGERR("[%s] response->method:%#hhx is not %s:%#hhx", funcname, response->method, is_noauth ? "NOAUTH" : "USRPWD", g_socks5_auth_request.method);
-        return false;
-    }
-    return true;
-}
-
-static bool chk_socks5_usrpwd_response(const char *funcname, const socks5_usrpwdresp_t *response) {
-    if (response->version != SOCKS5_VERSION) {
-        LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
-        return false;
-    }
-    if (response->respcode != SOCKS5_USRPWD_AUTHSUCC) {
-        LOGERR("[%s] response->respcode:%#hhx is not AUTHSUCC:%#hhx", funcname, response->respcode, SOCKS5_USRPWD_AUTHSUCC);
-        return false;
-    }
-    return true;
-}
-
-static bool chk_socks5_proxy_response(const char *funcname, const socks5_ipv4resp_t *response, bool isipv4) {
-    if (response->version != SOCKS5_VERSION) {
-        LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
-        return false;
-    }
-    if (response->respcode != SOCKS5_RESPCODE_SUCCEEDED) {
-        LOGERR("[%s] response->respcode:%#hhx(%s) is not SUCCEEDED:%#hhx", funcname, response->respcode, socks5_rcode2string(response->respcode), SOCKS5_RESPCODE_SUCCEEDED);
-        return false;
-    }
-    if (response->addrtype != (isipv4 ? SOCKS5_ADDRTYPE_IPV4 : SOCKS5_ADDRTYPE_IPV6)) {
-        LOGERR("[%s] response->addrtype:%#hhx is not ADDRTYPE_IPV%s:%#hhx", funcname, response->addrtype, isipv4 ? "4" : "6", isipv4 ? SOCKS5_ADDRTYPE_IPV4 : SOCKS5_ADDRTYPE_IPV6);
-        return false;
-    }
-    return true;
-}
-
 static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
     if (tcp_socks5_send_handler("tcp_socks5_send_authreq_cb", evloop, socks5_watcher, &g_socks5_auth_request, sizeof(socks5_authreq_t))) {
         ev_io_stop(evloop, socks5_watcher);
@@ -730,7 +621,7 @@ static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher
     if (!tcp_socks5_recv_handler("tcp_socks5_recv_authresp_cb", evloop, socks5_watcher, socks5_watcher->data, sizeof(socks5_authresp_t))) {
         return;
     }
-    if (!chk_socks5_auth_response("tcp_socks5_recv_authresp_cb", socks5_watcher->data)) {
+    if (!socks5_auth_response_check("tcp_socks5_recv_authresp_cb", socks5_watcher->data)) {
         tcp_context_release(evloop, get_tcpctx_by_watcher(socks5_watcher));
         return;
     }
@@ -751,7 +642,7 @@ static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *socks5_watch
     if (!tcp_socks5_recv_handler("tcp_socks5_recv_usrpwdresp_cb", evloop, socks5_watcher, socks5_watcher->data, sizeof(socks5_usrpwdresp_t))) {
         return;
     }
-    if (!chk_socks5_usrpwd_response("tcp_socks5_recv_usrpwdresp_cb", socks5_watcher->data)) {
+    if (!socks5_usrpwd_response_check("tcp_socks5_recv_usrpwdresp_cb", socks5_watcher->data)) {
         tcp_context_release(evloop, get_tcpctx_by_watcher(socks5_watcher));
         return;
     }
@@ -774,7 +665,7 @@ static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *socks5_watche
     if (!tcp_socks5_recv_handler("tcp_socks5_recv_proxyresp_cb", evloop, socks5_watcher, socks5_watcher->data, context->client_nrecv)) {
         return;
     }
-    if (!chk_socks5_proxy_response("tcp_socks5_recv_proxyresp_cb", socks5_watcher->data, context->client_nrecv == sizeof(socks5_ipv4resp_t))) {
+    if (!socks5_proxy_response_check("tcp_socks5_recv_proxyresp_cb", socks5_watcher->data, context->client_nrecv == sizeof(socks5_ipv4resp_t))) {
         tcp_context_release(evloop, context);
         return;
     }
