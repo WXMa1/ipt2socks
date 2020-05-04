@@ -26,6 +26,10 @@
   #define TCP_FASTOPEN 23
 #endif
 
+#ifndef MSG_FASTOPEN
+  #define MSG_FASTOPEN 0x20000000
+#endif
+
 #ifndef IP_TRANSPARENT
   #define IP_TRANSPARENT 19
 #endif
@@ -159,7 +163,7 @@ static inline void set_reuse_addr(int sockfd) {
     }
 }
 
-void set_reuse_port(int sockfd) {
+static inline void set_reuse_port(int sockfd) {
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0) {
         LOGERR("[set_reuse_port] setsockopt(%d, SO_REUSEPORT): %s", sockfd, my_strerror(errno));
     }
@@ -177,13 +181,13 @@ static inline void set_tcp_quickack(int sockfd) {
     }
 }
 
-void set_tfo_accept(int sockfd) {
+static inline void set_tfo_accept(int sockfd) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_FASTOPEN, &(int){5}, sizeof(int)) < 0) {
         LOGERR("[set_tfo_accept] setsockopt(%d, TCP_FASTOPEN): %s", sockfd, my_strerror(errno));
     }
 }
 
-void set_tcp_syncnt(int sockfd, int syncnt) {
+static inline void set_tcp_syncnt(int sockfd, int syncnt) {
     if (setsockopt(sockfd, IPPROTO_TCP, TCP_SYNCNT, &syncnt, sizeof(int)) < 0) {
         LOGERR("[set_tcp_syncnt] setsockopt(%d, TCP_SYNCNT): %s", sockfd, my_strerror(errno));
     }
@@ -217,15 +221,15 @@ static inline void set_recv_origdstaddr(int family, int sockfd) {
     }
 }
 
-void setup_accepted_sockfd(int sockfd) {
+static inline void setup_accepted_sockfd(int sockfd) {
     set_non_block(sockfd);
     set_tcp_nodelay(sockfd);
     set_tcp_quickack(sockfd);
 }
 
-void send_tcpreset_to_peer(int sockfd) {
+static inline void send_reset_to_peer(int sockfd) {
     if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &(struct linger){.l_onoff = 1, .l_linger = 0}, sizeof(struct linger)) < 0) {
-        LOGERR("[send_tcpreset_to_peer] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
+        LOGERR("[send_reset_to_peer] setsockopt(%d, SO_LINGER): %s", sockfd, my_strerror(errno));
     }
 }
 
@@ -241,16 +245,19 @@ static inline int new_nonblock_sockfd(int family, int sktype) {
     return sockfd;
 }
 
-int new_tcp_listen_sockfd(int family, bool is_tproxy) {
+int new_tcp_listen_sockfd(int family, bool is_tproxy, bool is_reuse_port, bool is_tfo_accept) {
     int sockfd = new_nonblock_sockfd(family, SOCK_STREAM);
     if (is_tproxy) set_ip_transparent(family, sockfd);
+    if (is_reuse_port) set_reuse_port(sockfd);
+    if (is_tfo_accept) set_tfo_accept(sockfd);
     return sockfd;
 }
 
-int new_tcp_connect_sockfd(int family) {
+int new_tcp_connect_sockfd(int family, uint8_t tcp_syncnt) {
     int sockfd = new_nonblock_sockfd(family, SOCK_STREAM);
     set_tcp_nodelay(sockfd);
     set_tcp_quickack(sockfd);
+    if (tcp_syncnt) set_tcp_syncnt(sockfd, tcp_syncnt);
     return sockfd;
 }
 
@@ -311,4 +318,40 @@ bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr) {
         }
     }
     return false;
+}
+
+bool tcp_accept(int sockfd, int *conn_sockfd, void *from_skaddr) {
+    *conn_sockfd = accept(sockfd, from_skaddr, from_skaddr ? &(socklen_t){sizeof(skaddr6_t)} : NULL);
+    if (*conn_sockfd < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    if (*conn_sockfd >= 0) setup_accepted_sockfd(*conn_sockfd);
+    return true;
+}
+
+bool tcp_connect(int sockfd, const void *skaddr, const void *data, size_t datalen, ssize_t *nsend) {
+    socklen_t skaddrlen = ((skaddr4_t *)skaddr)->sin_family == AF_INET ? sizeof(skaddr4_t) : sizeof(skaddr6_t);
+    if (data && datalen && nsend) {
+        if ((*nsend = sendto(sockfd, data, datalen, MSG_FASTOPEN, skaddr, skaddrlen)) < 0 && errno != EINPROGRESS) return false;
+    } else {
+        if (connect(sockfd, skaddr, skaddrlen) < 0 && errno != EINPROGRESS) return false;
+    }
+    return true;
+}
+
+bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv) {
+    ssize_t ret = recv(sockfd, data + *nrecv, datalen - *nrecv, 0);
+    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    if (ret > 0) *nrecv += ret;
+    return true;
+}
+
+bool tcp_send_data(int sockfd, const void *data, size_t datalen, size_t *nsend) {
+    ssize_t ret = send(sockfd, data + *nsend, datalen - *nsend, 0);
+    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
+    if (ret > 0) *nsend += ret;
+    return true;
+}
+
+void tcp_close_by_rst(int sockfd) {
+    send_reset_to_peer(sockfd);
+    close(sockfd);
 }

@@ -24,10 +24,6 @@
 #define UDP_CTRLMESG_BUFSIZ 64
 #define UDP_DATAGRAM_MAXSIZ 1472
 
-#ifndef MSG_FASTOPEN
-  #define MSG_FASTOPEN 0x20000000
-#endif
-
 typedef uint32_t ipaddr4_t;
 typedef uint8_t  ipaddr6_t[16];
 
@@ -53,15 +49,8 @@ int get_ipstr_family(const char *ipstr);
 void build_socket_addr(int family, void *skaddr, const char *ipstr, portno_t portno);
 void parse_socket_addr(const void *skaddr, char *ipstr, portno_t *portno);
 
-void set_reuse_port(int sockfd);
-void set_tfo_accept(int sockfd);
-void set_tcp_syncnt(int sockfd, int syncnt);
-
-void setup_accepted_sockfd(int sockfd);
-void send_tcpreset_to_peer(int sockfd);
-
-int new_tcp_listen_sockfd(int family, bool is_tproxy);
-int new_tcp_connect_sockfd(int family);
+int new_tcp_listen_sockfd(int family, bool is_tproxy, bool is_reuse_port, bool is_tfo_accept);
+int new_tcp_connect_sockfd(int family, uint8_t tcp_syncnt);
 
 int new_udp_tprecv_sockfd(int family);
 int new_udp_tpsend_sockfd(int family);
@@ -69,5 +58,12 @@ int new_udp_normal_sockfd(int family);
 
 bool get_tcp_orig_dstaddr(int family, int sockfd, void *dstaddr, bool is_tproxy);
 bool get_udp_orig_dstaddr(int family, struct msghdr *msg, void *dstaddr);
+
+/* false if error (errno is set); true if EAGAIN or succeed */
+bool tcp_accept(int sockfd, int *conn_sockfd, void *from_skaddr);
+bool tcp_connect(int sockfd, const void *skaddr, const void *data, size_t datalen, ssize_t *nsend);
+bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv);
+bool tcp_send_data(int sockfd, const void *data, size_t datalen, size_t *nsend);
+void tcp_close_by_rst(int sockfd);
 
 #endif
