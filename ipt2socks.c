@@ -656,7 +656,7 @@ static void tcp_socks5_connect_cb(evloop_t *evloop, evio_t *socks5_watcher, int 
     ev_invoke(evloop, socks5_watcher, EV_WRITE);
 }
 
-static void tcp_socks5_send_handler(evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen, evio_cb_t recv_cb, const char *funcname) {
+static bool tcp_socks5_send_handler(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, const void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
     ssize_t nsend = send(socks5_watcher->fd, data + context->socks5_nsend, datalen - context->socks5_nsend, 0);
     if (nsend < 0) {
@@ -664,22 +664,20 @@ static void tcp_socks5_send_handler(evloop_t *evloop, evio_t *socks5_watcher, co
             LOGERR("[%s] send to %s#%hu: %s", funcname, g_server_ipstr, g_server_portno, my_strerror(errno));
             tcp_context_release(evloop, context);
         }
-        return;
+        return false;
     }
     IF_VERBOSE LOGINF("[%s] send to %s#%hu, nsend:%zd", funcname, g_server_ipstr, g_server_portno, nsend);
     context->socks5_nsend += nsend;
     if (context->socks5_nsend >= datalen) {
         context->socks5_nsend = 0;
-        ev_io_stop(evloop, socks5_watcher);
-        ev_set_cb(socks5_watcher, recv_cb);
-        ev_io_modify(socks5_watcher, EV_READ);
-        ev_io_start(evloop, socks5_watcher);
+        return true;
     }
+    return false;
 }
 
-static bool tcp_socks5_recv_handler(evloop_t *evloop, evio_t *socks5_watcher, uint16_t datalen, const char *funcname) {
+static bool tcp_socks5_recv_handler(const char *funcname, evloop_t *evloop, evio_t *socks5_watcher, void *data, uint16_t datalen) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
-    ssize_t nrecv = recv(socks5_watcher->fd, socks5_watcher->data + context->socks5_nrecv, datalen - context->socks5_nrecv, 0);
+    ssize_t nrecv = recv(socks5_watcher->fd, data + context->socks5_nrecv, datalen - context->socks5_nrecv, 0);
     if (nrecv < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             LOGERR("[%s] recv from %s#%hu: %s", funcname, g_server_ipstr, g_server_portno, my_strerror(errno));
@@ -701,7 +699,7 @@ static bool tcp_socks5_recv_handler(evloop_t *evloop, evio_t *socks5_watcher, ui
     return false;
 }
 
-static bool chk_socks5_auth_response(const socks5_authresp_t *response, const char *funcname) {
+static bool chk_socks5_auth_response(const char *funcname, const socks5_authresp_t *response) {
     if (response->version != SOCKS5_VERSION) {
         LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
         return false;
@@ -714,7 +712,7 @@ static bool chk_socks5_auth_response(const socks5_authresp_t *response, const ch
     return true;
 }
 
-static bool chk_socks5_usrpwd_response(const socks5_usrpwdresp_t *response, const char *funcname) {
+static bool chk_socks5_usrpwd_response(const char *funcname, const socks5_usrpwdresp_t *response) {
     if (response->version != SOCKS5_VERSION) {
         LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
         return false;
@@ -726,7 +724,7 @@ static bool chk_socks5_usrpwd_response(const socks5_usrpwdresp_t *response, cons
     return true;
 }
 
-static bool chk_socks5_proxy_response(const socks5_ipv4resp_t *response, bool isipv4, const char *funcname) {
+static bool chk_socks5_proxy_response(const char *funcname, const socks5_ipv4resp_t *response, bool isipv4) {
     if (response->version != SOCKS5_VERSION) {
         LOGERR("[%s] response->version:%#hhx is not SOCKS5:%#hhx", funcname, response->version, SOCKS5_VERSION);
         return false;
@@ -743,12 +741,18 @@ static bool chk_socks5_proxy_response(const socks5_ipv4resp_t *response, bool is
 }
 
 static void tcp_socks5_send_authreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
-    tcp_socks5_send_handler(evloop, socks5_watcher, &g_socks5_auth_request, sizeof(socks5_authreq_t), tcp_socks5_recv_authresp_cb, "tcp_socks5_send_authreq_cb");
+    if (tcp_socks5_send_handler("tcp_socks5_send_authreq_cb", evloop, socks5_watcher, &g_socks5_auth_request, sizeof(socks5_authreq_t))) {
+        ev_io_stop(evloop, socks5_watcher);
+        ev_io_init(socks5_watcher, tcp_socks5_recv_authresp_cb, socks5_watcher->fd, EV_READ);
+        ev_io_start(evloop, socks5_watcher);
+    }
 }
 
 static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
-    if (!tcp_socks5_recv_handler(evloop, socks5_watcher, sizeof(socks5_authresp_t), "tcp_socks5_recv_authresp_cb")) return;
-    if (!chk_socks5_auth_response(socks5_watcher->data, "tcp_socks5_recv_authresp_cb")) {
+    if (!tcp_socks5_recv_handler("tcp_socks5_recv_authresp_cb", evloop, socks5_watcher, socks5_watcher->data, sizeof(socks5_authresp_t))) {
+        return;
+    }
+    if (!chk_socks5_auth_response("tcp_socks5_recv_authresp_cb", socks5_watcher->data)) {
         tcp_context_release(evloop, get_tcpctx_by_watcher(socks5_watcher));
         return;
     }
@@ -758,12 +762,18 @@ static void tcp_socks5_recv_authresp_cb(evloop_t *evloop, evio_t *socks5_watcher
 }
 
 static void tcp_socks5_send_usrpwdreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
-    tcp_socks5_send_handler(evloop, socks5_watcher, &g_socks5_usrpwd_request, g_socks5_usrpwd_requestlen, tcp_socks5_recv_usrpwdresp_cb, "tcp_socks5_send_usrpwdreq_cb");
+    if (tcp_socks5_send_handler("tcp_socks5_send_usrpwdreq_cb", evloop, socks5_watcher, &g_socks5_usrpwd_request, g_socks5_usrpwd_requestlen)) {
+        ev_io_stop(evloop, socks5_watcher);
+        ev_io_init(socks5_watcher, tcp_socks5_recv_usrpwdresp_cb, socks5_watcher->fd, EV_READ);
+        ev_io_start(evloop, socks5_watcher);
+    }
 }
 
 static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
-    if (!tcp_socks5_recv_handler(evloop, socks5_watcher, sizeof(socks5_usrpwdresp_t), "tcp_socks5_recv_usrpwdresp_cb")) return;
-    if (!chk_socks5_usrpwd_response(socks5_watcher->data, "tcp_socks5_recv_usrpwdresp_cb")) {
+    if (!tcp_socks5_recv_handler("tcp_socks5_recv_usrpwdresp_cb", evloop, socks5_watcher, socks5_watcher->data, sizeof(socks5_usrpwdresp_t))) {
+        return;
+    }
+    if (!chk_socks5_usrpwd_response("tcp_socks5_recv_usrpwdresp_cb", socks5_watcher->data)) {
         tcp_context_release(evloop, get_tcpctx_by_watcher(socks5_watcher));
         return;
     }
@@ -774,20 +784,24 @@ static void tcp_socks5_recv_usrpwdresp_cb(evloop_t *evloop, evio_t *socks5_watch
 
 static void tcp_socks5_send_proxyreq_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
-    tcp_socks5_send_handler(evloop, socks5_watcher, context->client_watcher.data, context->client_nrecv, tcp_socks5_recv_proxyresp_cb, "tcp_socks5_send_proxyreq_cb");
+    if (tcp_socks5_send_handler("tcp_socks5_send_proxyreq_cb", evloop, socks5_watcher, context->client_watcher.data, context->client_nrecv)) {
+        ev_io_stop(evloop, socks5_watcher);
+        ev_io_init(socks5_watcher, tcp_socks5_recv_proxyresp_cb, socks5_watcher->fd, EV_READ);
+        ev_io_start(evloop, socks5_watcher);
+    }
 }
 
 static void tcp_socks5_recv_proxyresp_cb(evloop_t *evloop, evio_t *socks5_watcher, int revents __attribute__((unused))) {
     tcp_context_t *context = get_tcpctx_by_watcher(socks5_watcher);
-    if (!tcp_socks5_recv_handler(evloop, socks5_watcher, context->client_nrecv, "tcp_socks5_recv_proxyresp_cb")) return;
-    if (!chk_socks5_proxy_response(socks5_watcher->data, context->client_nrecv == sizeof(socks5_ipv4resp_t), "tcp_socks5_recv_proxyresp_cb")) {
+    if (!tcp_socks5_recv_handler("tcp_socks5_recv_proxyresp_cb", evloop, socks5_watcher, socks5_watcher->data, context->client_nrecv)) {
+        return;
+    }
+    if (!chk_socks5_proxy_response("tcp_socks5_recv_proxyresp_cb", socks5_watcher->data, context->client_nrecv == sizeof(socks5_ipv4resp_t))) {
         tcp_context_release(evloop, context);
         return;
     }
     ev_set_cb(socks5_watcher, tcp_stream_recv_payload_cb);
-    evio_t *client_watcher = &context->client_watcher;
-    ev_io_init(client_watcher, tcp_stream_recv_payload_cb, client_watcher->fd, EV_READ | EV_CUSTOM); /* EV_CUSTOM: indicates it is client */
-    ev_io_start(evloop, client_watcher);
+    ev_io_start(evloop, &context->client_watcher); /* already init */
 }
 
 static void tcp_stream_recv_payload_cb(evloop_t *evloop, evio_t *watcher, int revents) {
