@@ -488,6 +488,7 @@ static void* run_event_loop(void *is_main_thread) {
     if ((g_options & OPT_ENABLE_UDP) && is_main_thread) {
         if (g_options & OPT_ENABLE_IPV4) {
             int sockfd = new_udp_tprecv_sockfd(AF_INET);
+
             if (bind(sockfd, (void *)&g_bind_skaddr4, sizeof(skaddr4_t)) < 0) {
                 LOGERR("[run_event_loop] bind udp4 address: %s", my_strerror(errno));
                 exit(errno);
@@ -501,6 +502,7 @@ static void* run_event_loop(void *is_main_thread) {
 
         if (g_options & OPT_ENABLE_IPV6) {
             int sockfd = new_udp_tprecv_sockfd(AF_INET6);
+
             if (bind(sockfd, (void *)&g_bind_skaddr6, sizeof(skaddr6_t)) < 0) {
                 LOGERR("[run_event_loop] bind udp6 address: %s", my_strerror(errno));
                 exit(errno);
