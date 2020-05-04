@@ -341,17 +341,25 @@ bool tcp_has_error(int sockfd) {
     return getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &errno, &(socklen_t){sizeof(errno)}) < 0 || errno;
 }
 
-bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv) {
+bool tcp_recv_data(int sockfd, void *data, size_t datalen, size_t *nrecv, bool *is_eof) {
     ssize_t ret = recv(sockfd, data + *nrecv, datalen - *nrecv, 0);
-    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
-    if (ret > 0) *nrecv += ret;
+    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        return false;
+    } else if (ret == 0) {
+        *is_eof = true;
+    } else if (ret > 0) {
+        *nrecv += ret;
+    }
     return true;
 }
 
 bool tcp_send_data(int sockfd, const void *data, size_t datalen, size_t *nsend) {
     ssize_t ret = send(sockfd, data + *nsend, datalen - *nsend, 0);
-    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return false;
-    if (ret > 0) *nsend += ret;
+    if (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        return false;
+    } else if (ret > 0) {
+        *nsend += ret;
+    }
     return true;
 }
 
